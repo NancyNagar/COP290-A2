@@ -7,6 +7,9 @@ const JWT_SECRET = process.env.JWT_SECRET || "supersecret";
 interface JwtPayload {
   userId: string;
 }
+interface AuthRequest extends Request {
+  userId?: string;
+}
 
 /*it recieves
  req → incoming request
@@ -14,7 +17,7 @@ res → response object
 next → move to next step
 */
 export function authMiddleware(
-  req: Request,
+  req: AuthRequest,
   res: Response,
   next: NextFunction
 ) {
@@ -30,7 +33,7 @@ export function authMiddleware(
 
     const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
 
-    (req as any).userId = decoded.userId;
+    req.userId = decoded.userId;
 
     next();
 
