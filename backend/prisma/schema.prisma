@@ -20,6 +20,7 @@ model User {
   reportedTasks Task[]
   comments      Comment[]
   notifications Notification[]
+  auditLogs     AuditLog[]
 }
 
 model Project {
@@ -59,10 +60,11 @@ model Board {
 }
 
 model Column {
-  id      String @id @default(uuid())
-  name    String
-  boardId String
-  order   Int
+  id       String @id @default(uuid())
+  name     String
+  boardId  String
+  order    Int
+  wipLimit Int?   // max tasks allowed in this column; null = no limit
 
   board Board  @relation(fields: [boardId], references: [id])
   tasks Task[]
@@ -72,6 +74,7 @@ model Task {
   id          String    @id @default(uuid())
   title       String
   description String?
+  type        String    @default("task") // "story" | "task" | "bug"
   priority    String    // "low" | "medium" | "high" | "critical"
   status      String
   dueDate     DateTime?
@@ -81,10 +84,13 @@ model Task {
   columnId   String
   reporterId String
   assigneeId String?
+  parentId   String?   // null for Stories and standalone tasks; set for Tasks/Bugs under a Story
 
-  column   Column @relation(fields: [columnId], references: [id])
-  reporter User   @relation(fields: [reporterId], references: [id])
-  assignee User?  @relation("AssignedTasks", fields: [assigneeId], references: [id])
+  column   Column  @relation(fields: [columnId], references: [id])
+  reporter User    @relation(fields: [reporterId], references: [id])
+  assignee User?   @relation("AssignedTasks", fields: [assigneeId], references: [id])
+  parent   Task?   @relation("TaskChildren", fields: [parentId], references: [id])
+  children Task[]  @relation("TaskChildren")
 
   comments Comment[]
   audits   AuditLog[]
@@ -121,5 +127,7 @@ model AuditLog {
   createdAt DateTime @default(now())
 
   taskId String
+  userId String   // who performed the action
   task   Task @relation(fields: [taskId], references: [id])
+  user   User @relation(fields: [userId], references: [id])
 }
