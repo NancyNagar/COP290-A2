@@ -54,7 +54,8 @@ model Board {
   id        String @id @default(uuid())
   name      String
   projectId String
-
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
   project Project  @relation(fields: [projectId], references: [id])
   columns Column[]
 }
@@ -65,7 +66,7 @@ model Column {
   boardId  String
   order    Int
   wipLimit Int?   // max tasks allowed in this column; null = no limit
-
+  allowedNextColumns String? //for valid transitions
   board Board  @relation(fields: [boardId], references: [id])
   tasks Task[]
 }
@@ -80,7 +81,8 @@ model Task {
   dueDate     DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
-
+  resolvedAt DateTime?
+  closedAt   DateTime? 
   columnId   String
   reporterId String
   assigneeId String?
