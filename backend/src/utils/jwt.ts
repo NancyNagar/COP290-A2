@@ -1,10 +1,34 @@
 import jwt from "jsonwebtoken";
 
-const JWT_SECRET = process.env.JWT_SECRET || "supersecret"; //secret key for signing JWTs, should be stored in environment variables
+const ACCESS_SECRET = process.env.JWT_ACCESS_SECRET || "access-secret";
+const REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || "refresh-secret";
 
-//function to generate a JWT token for a given user ID, the token will expire in 1 day
-export function generateToken(userId: string) {
-  return jwt.sign({ userId }, JWT_SECRET, {
-    expiresIn: "1d"
-  });
+interface JwtPayload {
+  userId: string;
+}
+
+// Short-lived — verified on every protected request
+export function generateAccessToken(userId: string): string {
+  return jwt.sign({ userId }, ACCESS_SECRET, { expiresIn: "15m" });
+}
+
+// Long-lived — only used to issue new access tokens
+export function generateRefreshToken(userId: string): string {
+  return jwt.sign({ userId }, REFRESH_SECRET, { expiresIn: "7d" });
+}
+
+export function verifyAccessToken(token: string): JwtPayload | null {
+  try {
+    return jwt.verify(token, ACCESS_SECRET) as JwtPayload;
+  } catch {
+    return null;
+  }
+}
+
+export function verifyRefreshToken(token: string): JwtPayload | null {
+  try {
+    return jwt.verify(token, REFRESH_SECRET) as JwtPayload;
+  } catch {
+    return null;
+  }
 }

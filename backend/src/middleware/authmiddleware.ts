@@ -1,12 +1,8 @@
 import { Request, Response, NextFunction } from "express";
-import jwt from "jsonwebtoken";
+import { verifyAccessToken } from "../utils/jwt"; // uses ACCESS_SECRET
 
 const JWT_SECRET = process.env.JWT_SECRET || "supersecret";
 
-//jwt payload  contains data stored in the JWT token, in this case it contains the user ID, which can be used to identify the authenticated user in protected routes
-interface JwtPayload {
-  userId: string;
-}
 interface AuthRequest extends Request {
   userId?: string;
 }
@@ -23,20 +19,21 @@ export function authMiddleware(
 ) {
   try {
 
-    const token = req.cookies.token;//middleware readsthat cookie
+    const token = req.cookies.accessToken;//middleware readsthat cookie
 
     if (!token) {
       return res.status(401).json({
         message: "Authentication required"
       });
     }
+    const payload = verifyAccessToken(token); // ← was jwt.verify with shared secret
+    if (!payload) {
+      res.status(401).json({ message: "Invalid or expired token" });
+      return;
+    }
 
-    const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
-
-    req.userId = decoded.userId;
-
+    req.userId = payload.userId;
     next();
-
   } catch (error) {
     return res.status(401).json({
       message: "Invalid or expired token"
