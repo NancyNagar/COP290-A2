@@ -21,6 +21,7 @@ model User {
   comments      Comment[]
   notifications Notification[]
   auditLogs     AuditLog[]
+  refreshTokens RefreshToken[]
 }
 
 model Project {
@@ -133,3 +134,13 @@ model AuditLog {
   task   Task @relation(fields: [taskId], references: [id])
   user   User @relation(fields: [userId], references: [id])
 }
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
