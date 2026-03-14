@@ -24,35 +24,47 @@ async function checkBoardAccess(userId: string, projectId: string) {
   }
 }
 
-export async function createBoard(userId:string,projectId: string, name: string) {
+async function checkReadAccess(userId: string, projectId: string) {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) throw new Error("FORBIDDEN: User not found");
+  if (user.role === GLOBAL_ADMIN) return;
 
-  await checkBoardAccess(userId,projectId);
+  const membership = await prisma.projectMember.findUnique({
+    where: { userId_projectId: { userId, projectId } },
+  });
+
+  if (!membership) throw new Error("FORBIDDEN: Not a member of this project");
+}
+
+export async function createBoard(userId: string, projectId: string, name: string) {
+
+  await checkBoardAccess(userId, projectId);
 
   /**automatically creates board+4 default columns */
   return await prisma.$transaction(async (tx) => {
 
-        const board = await tx.board.create({ data: { name, projectId } });
+    const board = await tx.board.create({ data: { name, projectId } });
 
-        // requires default columns
-        const defaults = ["To Do", "In Progress", "Review", "Done"];
+    // requires default columns
+    const defaults = ["To Do", "In Progress", "Review", "Done"];
 
-        await Promise.all(
-          defaults.map((colName, index) =>
-            tx.column.create({
-              data: { name: colName, boardId: board.id, order: index },
-            })
-          )
-        );
+    await Promise.all(
+      defaults.map((colName, index) =>
+        tx.column.create({
+          data: { name: colName, boardId: board.id, order: index },
+        })
+      )
+    );
 
-        return tx.board.findUnique({ //fetches board
-          where: { id: board.id },
-          include: { columns: { orderBy: { order: "asc" } } }, //also returns columns of this board
-        });
+    return tx.board.findUnique({ //fetches board
+      where: { id: board.id },
+      include: { columns: { orderBy: { order: "asc" } } }, //also returns columns of this board
+    });
   });
 }
 
-export async function getBoards(userId:string,projectId: string) {
-  await checkBoardAccess(userId, projectId);
+export async function getBoards(userId: string, projectId: string) {
+  await checkReadAccess(userId, projectId);
   const boards = await prisma.board.findMany({//retrieves multiple boards for project
     where: { projectId },
     include: {
@@ -66,9 +78,9 @@ export async function getBoards(userId:string,projectId: string) {
 }
 
 /**returns a single board by Id with its columns and tasks */
-export async function getBoardById(userId:string ,boardId: string) {
-
- const board = await prisma.board.findUnique({
+export async function getBoardById(userId: string, boardId: string) {
+  await checkReadAccess(userId, boardId);
+  const board = await prisma.board.findUnique({
     where: { id: boardId },
     include: {
       columns: {
@@ -88,13 +100,13 @@ export async function getBoardById(userId:string ,boardId: string) {
 
 //renaming
 export async function updateBoard(
-  userId:string,
-  projectId:string,
+  userId: string,
+  projectId: string,
   boardId: string,
   name: string
 ) {
 
-  await checkBoardAccess(userId,projectId);
+  await checkBoardAccess(userId, projectId);
 
   return await prisma.board.update({
     where: { id: boardId },
@@ -104,12 +116,12 @@ export async function updateBoard(
 
 //deltes board and all its columns/taslks
 export async function deleteBoard(
-  userId:string,
-  projectId:string,
+  userId: string,
+  projectId: string,
   boardId: string
 ) {
 
-  await checkBoardAccess(userId,projectId);
+  await checkBoardAccess(userId, projectId);
 
   await prisma.board.delete({
     where: { id: boardId },
