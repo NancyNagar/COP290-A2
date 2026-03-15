@@ -6,7 +6,7 @@ import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from ".
 export async function register(req: Request, res: Response) {
   try {
     const { name, email, password } = req.body;
-        // Basic input validation — prevents DB errors and provides clear feedback
+    // Basic input validation — prevents DB errors and provides clear feedback
     if (!name || !email || !password) {
       res.status(400).json({ message: "Name, email and password are required" });
       return;
@@ -92,21 +92,27 @@ export async function login(req: Request, res: Response) {
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict" as const
     };
- 
+
     res.cookie("accessToken", accessToken, {
       ...cookieOptions,
       maxAge: 15 * 60 * 1000          // 15 minutes
     });
- 
+
     res.cookie("refreshToken", refreshToken, {
       ...cookieOptions,
       maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     });
- 
-  
+
+
 
     res.json({
-      message: "Login successful"
+      message: "Login successful",
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role
+      }
     });
 
   } catch (error) {
@@ -120,36 +126,36 @@ export async function login(req: Request, res: Response) {
 export async function refresh(req: Request, res: Response): Promise<void> {
   try {
     const token = req.cookies.refreshToken;
- 
+
     if (!token) {
       res.status(401).json({ message: "No refresh token" });
       return;
     }
- 
+
     // Check DB first — if this token was already invalidated by logout, reject it
     const stored = await prisma.refreshToken.findUnique({ where: { token } });
     if (!stored || stored.expiresAt < new Date()) {
       res.status(401).json({ message: "Invalid or expired refresh token" });
       return;
     }
- 
+
     // Cryptographically verify the token signature
     const payload = verifyRefreshToken(token);
     if (!payload) {
       res.status(401).json({ message: "Invalid refresh token" });
       return;
     }
- 
+
     // Issue a fresh access token — user stays logged in 
     const newAccessToken = generateAccessToken(payload.userId);
- 
+
     res.cookie("accessToken", newAccessToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
       maxAge: 15 * 60 * 1000
     });
- 
+
     res.json({ message: "Token refreshed" });
   } catch (error) {
     res.status(500).json({ message: "Server error" });
@@ -158,7 +164,7 @@ export async function refresh(req: Request, res: Response): Promise<void> {
 export async function logout(req: Request, res: Response): Promise<void> {
   try {
     const token = req.cookies.refreshToken;
- 
+
     if (token) {
       // SPEC REQUIREMENT: "Logout must invalidate the refresh token"
       // Deleting from DB means even if someone captured the cookie, it's now useless
@@ -166,10 +172,10 @@ export async function logout(req: Request, res: Response): Promise<void> {
         // Token may already be gone — that's fine, proceed with logout
       });
     }
- 
+
     res.clearCookie("accessToken");
     res.clearCookie("refreshToken");
- 
+
     res.json({ message: "Logged out" });
   } catch (error) {
     res.status(500).json({ message: "Server error" });
