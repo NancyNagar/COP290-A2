@@ -29,16 +29,17 @@ async function checkForProjectAccess(
     );
   }
 }
+
 /**
  * Create a new project.
  * Only Global Admins may do this .
  */
 export async function createProject(
-  userId:string,
+  userId: string,
   name: string,
   description?: string //description is optional, so it can be undefined
 ) {
-   // Verify caller is a global admin
+  // Verify caller is a global admin
   const caller = await prisma.user.findUnique({ where: { id: userId } });
   if (!caller || caller.role !== GLOBAL_ADMIN) {
     throw new Error("FORBIDDEN: Only Global Admins can create projects");
@@ -68,10 +69,10 @@ export async function getProjects(userId: string) { /**used aysync ,because data
     include: { project: true } //also fetch the retlated project
   });
   //Non-admins cannot see archived projects
-  return memberships.map(m => m.project).filter((p)=>!p.isArchived); //map extracts only projects
+  return memberships.map(m => m.project).filter((p) => !p.isArchived); //map extracts only projects
 }
 /**any updates if done,added to database */
-export async function putProjectById(userID:string,projectId: string, updates: Partial<{ name: string; description: string }>) {
+export async function putProjectById(userID: string, projectId: string, updates: Partial<{ name: string; description: string }>) {
   await checkForProjectAccess(userID, projectId); //only global admin or that project admin can add those can do updates
   const project = await prisma.project.update({
     where: {
@@ -94,7 +95,7 @@ export async function archiveProjectById(userId: string, projectId: string) {
   });
 }
 /***permenantly deletes a project */
-export async function deleteProjectById(userId:string,projectId: string) {
+export async function deleteProjectById(userId: string, projectId: string) {
   await checkForProjectAccess(userId, projectId);
   await prisma.project.delete({
     where: {
