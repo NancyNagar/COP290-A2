@@ -185,14 +185,9 @@ export async function moveTaskController(
       return;
     }
 
-    const { newColumnId, newStatus } = req.body;
+    const { newColumnId } = req.body;
     if (!newColumnId || typeof newColumnId !== "string") {
       res.status(400).json({ message: "newColumnId is required" });
-      return;
-    }
-
-    if (!newStatus || typeof newStatus !== "string") {
-      res.status(400).json({ message: "newStatus is required" });
       return;
     }
 
