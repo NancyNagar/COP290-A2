@@ -155,3 +155,45 @@ export async function checkWipLimit(columnId: string): Promise<boolean> {
 
   return column._count.tasks < column.wipLimit;
 }
+/**
+ * Sets the allowed next columns for a given column (valid transitions).
+ * allowedNextColumnIds is an array of column IDs that tasks can move to from this column.
+ * Pass an empty array to block all transitions out of this column.
+ * Pass null to clear configuration (any transition allowed).
+ */
+export async function setAllowedTransitions(
+  userId: string,
+  columnId: string,
+  allowedNextColumnIds: string[] | null
+) {
+  await checkBoardAccessByColumn(userId, columnId);
+
+  if (allowedNextColumnIds !== null && allowedNextColumnIds.length > 0) {
+    const sourceColumn = await prisma.column.findUnique({
+      where: { id: columnId },
+      select: { boardId: true },
+    });
+    if (!sourceColumn) throw new Error("NOT_FOUND: Column not found");
+
+    const targetColumns = await prisma.column.findMany({
+      where: { id: { in: allowedNextColumnIds }, boardId: sourceColumn.boardId },
+      select: { id: true },
+    });
+
+    if (targetColumns.length !== allowedNextColumnIds.length) {
+      throw new Error(
+        "INVALID: Some target columns do not exist or belong to a different board"
+      );
+    }
+  }
+
+  return await prisma.column.update({
+    where: { id: columnId },
+    data: {
+      allowedNextColumns:
+        allowedNextColumnIds === null
+          ? null
+          : JSON.stringify(allowedNextColumnIds),
+    },
+  });
+}

@@ -6,6 +6,7 @@ import {
   deleteColumnController,
   reorderColumnsController,
   updateWipLimitController,
+  setAllowedTransitionsController
 } from "../controllers/coloumnController";
 import { authMiddleware } from "../middleware/authmiddleware";
 
@@ -31,6 +32,11 @@ router.patch(
   "/columns/:columnId/wip-limit",
   authMiddleware,
   updateWipLimitController
+);
+router.patch(
+  "/columns/:columnId/transitions",
+  authMiddleware,
+  setAllowedTransitionsController
 );
 
 export default router;

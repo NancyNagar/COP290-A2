@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { createColumn, updateColumn, deleteColumn, getColumns, reorderColumns, updateWipLimit } from "../services/coloumService";
+import { createColumn, updateColumn, deleteColumn, getColumns, reorderColumns, updateWipLimit, setAllowedTransitions } from "../services/coloumService";
 type AuthRequest = Request & { userId: string };
 
 // reusable error handler (same pattern as boardController)
@@ -175,6 +175,47 @@ export async function updateWipLimitController(
 
     const column = await updateWipLimit(userId, columnId, wipLimit);
 
+    res.json(column);
+  } catch (error) {
+    handleError(res, error);
+  }
+}
+/**
+ * PATCH /columns/:columnId/transitions
+ * Sets which columns tasks are allowed to move to from this column.
+ * Only Project Admins can configure transitions.
+ * Body: { allowedNextColumnIds: string[] | null }
+ *   - string[]  → restrict moves to only these column IDs
+ *   - null      → clear restriction (any move allowed)
+ */
+
+export async function setAllowedTransitionsController(
+  req: Request,
+  res: Response
+): Promise<void> {
+  try {
+    const { columnId } = req.params;
+    const { allowedNextColumnIds } = req.body;
+    const userId = (req as AuthRequest).userId;
+
+    if (!columnId || typeof columnId !== "string") {
+      res.status(400).json({ message: "Column ID is required" });
+      return;
+    }
+
+    // allowedNextColumnIds must be an array of strings, or explicitly null
+    if (
+      allowedNextColumnIds !== null &&
+      (!Array.isArray(allowedNextColumnIds) ||
+        allowedNextColumnIds.some((id: unknown) => typeof id !== "string"))
+    ) {
+      res.status(400).json({
+        message: "allowedNextColumnIds must be an array of column ID strings, or null",
+      });
+      return;
+    }
+
+    const column = await setAllowedTransitions(userId, columnId, allowedNextColumnIds);
     res.json(column);
   } catch (error) {
     handleError(res, error);
