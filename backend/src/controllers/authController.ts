@@ -181,3 +181,46 @@ export async function logout(req: Request, res: Response): Promise<void> {
     res.status(500).json({ message: "Server error" });
   }
 }
+
+/**
+ * PATCH/api/auth/profile
+ * Updates the profile of the logged in user
+ */
+export async function updateProfile(req: Request, res: Response): Promise<void> {
+  try {
+    const userId = (req as Request & { userId: string }).userId;
+
+    const { name, avatar } = req.body as { name?: unknown; avatar?: unknown };
+
+    // Validate: at least one field must be provided
+    if (name === undefined && avatar === undefined) {
+      res.status(400).json({ message: "At least one of name or avatar is required" });
+      return;
+    }
+
+    if (name !== undefined && typeof name !== "string") {
+      res.status(400).json({ message: "name must be a string" });
+      return;
+    }
+
+    if (avatar !== undefined && typeof avatar !== "string") {
+      res.status(400).json({ message: "avatar must be a URL string" });
+      return;
+    }
+
+    // Build partial update — only include fields that were supplied
+    const data: { name?: string; avatar?: string } = {};
+    if (name !== undefined) data.name = name;
+    if (avatar !== undefined) data.avatar = avatar;
+
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data,
+      select: { id: true, name: true, email: true, avatar: true, role: true },
+    });
+
+    res.json({ message: "Profile updated", user: updatedUser });
+  } catch (error) {
+    res.status(500).json({ message: "Server error" });
+  }
+}
