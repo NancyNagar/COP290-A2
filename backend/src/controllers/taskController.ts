@@ -196,7 +196,7 @@ export async function moveTaskController(
       return;
     }
 
-    const task = await moveTask(userId, taskId, newColumnId, newStatus);
+    const task = await moveTask(userId, taskId, newColumnId);
     res.json(task);
   } catch (error) {
     handleError(res, error);

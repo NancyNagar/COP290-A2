@@ -1,5 +1,6 @@
 import prisma from "../utils/prisma";
 import { isValidTransition } from "../utils/workflow";
+// NOTE: isValidTransition is now async and takes columnIds, not status strings
 import { createNotification } from "./notificationService";
 import { checkWipLimit } from "./coloumService";
 const GLOBAL_ADMIN = "admin";
@@ -248,7 +249,6 @@ export async function moveTask(
     callerId: string,
     taskId: string,
     newColumnId: string,
-    newStatus: string
 ) {
     const existing = await prisma.task.findUnique({ where: { id: taskId } });
     if (!existing) throw new Error("NOT_FOUND: Task not found");
@@ -261,19 +261,24 @@ export async function moveTask(
         throw new Error("INVALID: Stories cannot be moved directly across columns");
     }
 
-    // Validate the status transition
-    if (!isValidTransition(existing.status, newStatus)) {
+    // Validate the transition using allowedNextColumns on the source column
+    const validMove = await isValidTransition(existing.columnId, newColumnId);
+    if (!validMove) {
         throw new Error(
-            `INVALID_TRANSITION: Cannot move from "${existing.status}" to "${newStatus}"`
+            `INVALID_TRANSITION: Move from current column to target column is not allowed`
         );
     }
 
-    // Enforce WIP limit on the destination column
+    // Fetch destination column to get its name (which becomes the new status)
     const destColumn = await prisma.column.findUnique({
         where: { id: newColumnId },
     });
     if (!destColumn) throw new Error("NOT_FOUND: Destination column not found");
 
+    // Status always mirrors the column name — no separate newStatus needed
+    const newStatus = destColumn.name;
+
+    // Enforce WIP limit on the destination column
     if (destColumn.wipLimit !== null && destColumn.wipLimit !== undefined) {
         const count = await prisma.task.count({ where: { columnId: newColumnId } });
         if (count >= destColumn.wipLimit) {
@@ -283,11 +288,21 @@ export async function moveTask(
         }
     }
 
-    // Set resolved/closed timestamps when entering terminal statuses
-    const resolvedAt =
-        newStatus === "Done" ? (existing.resolvedAt ?? new Date()) : existing.resolvedAt;
-    const closedAt =
-        newStatus === "Closed" ? (existing.closedAt ?? new Date()) : existing.closedAt;
+    // Determine if destination is the last column on this board (terminal column)
+    // regardless of its name — last by order = "done" column
+    const boardColumns = await prisma.column.findMany({
+        where: { boardId: destColumn.boardId },
+        orderBy: { order: "asc" },
+        select: { id: true },
+    });
+    const isLastColumn = boardColumns[boardColumns.length - 1]?.id === newColumnId;
+
+    // Set resolvedAt the first time a task reaches the terminal (last) column
+    const resolvedAt = isLastColumn
+        ? (existing.resolvedAt ?? new Date())
+        : existing.resolvedAt;
+    // closedAt is not tied to a column name — keep as-is
+    const closedAt = existing.closedAt;
 
     const updatedTask = await prisma.task.update({
         where: { id: taskId },
@@ -318,5 +333,77 @@ export async function moveTask(
         );
     }
 
+    // If this task belongs to a Story, derive and update the Story's status
+    if (existing.parentId) {
+        await deriveStoryStatus(existing.parentId);
+    }
+
     return updatedTask;
+}
+
+/**
+ * Derives the parent Story's status from its children's positions on the board.
+ *
+ * We use column ORDER (position) not column name — so this works for any
+ * custom board layout, not just default "To Do / In Progress / Done" columns.
+ *
+ * Logic:
+ *   - All children are in the LAST column  → Story gets the last column's name
+ *   - All children are in the FIRST column → Story gets the first column's name
+ *   - Mixed / some in middle columns       → Story gets the furthest child's column name
+ *
+ * Story's status is a plain string — Stories are shown in a separate panel,
+ * not inside a column, so no columnId update is needed.
+ */
+async function deriveStoryStatus(storyId: string): Promise<void> {
+    const children = await prisma.task.findMany({
+        where: { parentId: storyId },
+        include: { column: true },
+    });
+
+    const firstChild = children[0];
+    if (!firstChild || !firstChild.column) return; // no children or missing column, nothing to derive
+
+    // Get all columns of the board this story's children live on,
+    // sorted by order so we can reason about position (first, last, furthest)
+    const boardId = firstChild.column.boardId;
+    const boardColumns = await prisma.column.findMany({
+        where: { boardId },
+        orderBy: { order: "asc" },
+    });
+
+    const firstColumn = boardColumns[0];
+    const lastColumn = boardColumns[boardColumns.length - 1];
+
+    if (!firstColumn || !lastColumn) return;
+
+    // Check if all children have reached the terminal (last) column
+    const allInLastColumn = children.every((c) => c.columnId === lastColumn.id);
+
+    // Check if all children are still in the first column
+    const allInFirstColumn = children.every((c) => c.columnId === firstColumn.id);
+
+    let derivedStatus: string;
+
+    if (allInLastColumn) {
+        // Every child is done — story is done
+        derivedStatus = lastColumn.name;
+    } else if (allInFirstColumn) {
+        // Nothing has started yet
+        derivedStatus = firstColumn.name;
+    } else {
+        // Find the child that is furthest along (highest column order)
+        // and use that column's name as the story status
+        const furthestChild = children.reduce((furthest, child) => {
+            const childOrder = child.column.order;
+            const furthestOrder = furthest.column.order;
+            return childOrder > furthestOrder ? child : furthest;
+        });
+        derivedStatus = furthestChild.column.name;
+    }
+
+    await prisma.task.update({
+        where: { id: storyId },
+        data: { status: derivedStatus },
+    });
 }
