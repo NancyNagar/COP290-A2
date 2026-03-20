@@ -15,12 +15,12 @@ const router = Router();
 /*this route is protected by the authMiddleware
  Only authenticated users can do the following like craete,editing.....*/
 
-router.post("/projects", authMiddleware, createProjectController);
-router.get("/projects", authMiddleware, getProjectsController);
-router.put("/projects/:projectId", authMiddleware, putProjectController);
-router.delete("/projects/:projectId", authMiddleware, deleteProjectController);
-router.patch("/projects/:projectId/archive", authMiddleware, archiveProjectController);
-router.get("/projects/:projectId/members", authMiddleware, getProjectMembersController);
-router.put("/projects/:projectId/members", authMiddleware, upsertProjectMemberController);
-router.delete("/projects/:projectId/members/:targetUserId", authMiddleware, removeProjectMemberController);
+router.post("/", authMiddleware, createProjectController);
+router.get("/", authMiddleware, getProjectsController);
+router.put("/:projectId", authMiddleware, putProjectController);
+router.delete("/:projectId", authMiddleware, deleteProjectController);
+router.patch("/:projectId/archive", authMiddleware, archiveProjectController);
+router.get("/:projectId/members", authMiddleware, getProjectMembersController);
+router.put("/:projectId/members", authMiddleware, upsertProjectMemberController);
+router.delete("/:projectId/members/:targetUserId", authMiddleware, removeProjectMemberController);
 export default router;

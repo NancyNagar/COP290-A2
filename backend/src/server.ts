@@ -21,15 +21,15 @@ app.use("/api/auth", authRoutes);
       PUT/projects/:id
       DELETE/projects/:id
 */
-app.use("/api", projectRoutes);
+app.use("/api/projects", projectRoutes);
 /**endpoints for boards are
  * POST/API/boards
  * get/api/boards/:projectId 
- * */ 
-app.use("/api", boardRoutes);
+ * */
+app.use("/api/boards", boardRoutes);
 app.use("/api/tasks", taskRoutes);
 app.use("/api/comments", commentRoutes);
-app.use("/api",notificationRoutes);
+app.use("/api/notifications", notificationRoutes);
 if (process.env.NODE_ENV !== "test") {
   app.listen(5000, () => {
     console.log("Server running");

@@ -7,11 +7,7 @@ import {
 } from "../controllers/notificationController";
 
 const router = Router();
-router.get("/notifications", authMiddleware, getNotificationsController);
-router.patch(
-  "/notifications/:id/read",
-  authMiddleware,
-  markNotificationReadController
-);
+router.get("/", authMiddleware, getNotificationsController);
+router.patch("/:id/read", authMiddleware, markNotificationReadController);
 
 export default router;

@@ -7,7 +7,7 @@ import {
   reorderColumnsController,
   updateWipLimitController,
   setAllowedTransitionsController
-} from "../controllers/coloumnController";
+} from "../controllers/columnController";
 import { authMiddleware } from "../middleware/authmiddleware";
 
 const router = Router();
