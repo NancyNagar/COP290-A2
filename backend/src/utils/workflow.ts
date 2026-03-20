@@ -1,19 +1,27 @@
-export const allowedTransitions: Record<string, string[]> = {
+import prisma from "./prisma";
 
-  todo: ["inprogress"],
+/**
+ * Validates whether moving a task from its current column to newColumnId
+ * is permitted, based on the allowedNextColumns field stored on the source column.
+ *
+ * If allowedNextColumns is null (not configured), we allow any move —
+ * this is a safe default so boards without configured transitions still work.
+ */
+export async function isValidTransition(
+  currentColumnId: string,
+  newColumnId: string
+): Promise<boolean> {
+  if (currentColumnId === newColumnId) return true;
 
-  inprogress: ["review"],
+  const sourceColumn = await prisma.column.findUnique({
+    where: { id: currentColumnId },
+  });
 
-  review: ["done"],
+  if (!sourceColumn) return false;
 
-  done: []
+  // If no transitions configured, allow any move
+  if (!sourceColumn.allowedNextColumns) return true;
 
-};
-export function isValidTransition(currentStatus: string, newStatus: string): boolean {
-
-  const allowedNextStatuses = allowedTransitions[currentStatus];
-  if (!allowedNextStatuses) {
-    return false; // Invalid current status
-  }
-  return allowedNextStatuses.includes(newStatus);   
+  const allowed: string[] = JSON.parse(sourceColumn.allowedNextColumns);
+  return allowed.includes(newColumnId);
 }
