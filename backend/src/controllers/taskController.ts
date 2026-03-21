@@ -133,7 +133,7 @@ export async function updateTaskController(
       return;
     }
 
-    const { title, description, priority, dueDate, assigneeId, status } = req.body;
+    const { title, description, priority, dueDate, assigneeId } = req.body;
 
     const updates: Record<string, unknown> = {};
     if (title !== undefined) updates.title = title;
