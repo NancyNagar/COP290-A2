@@ -10,8 +10,8 @@ const PROJECT_ADMIN = "project_admin";
  * Global Admins bypass project membership entirely.
  */
 export async function getMembership(userId: string, projectId: string) {
-    const caller = await prisma.user.findUniqueOrThrow({ where: { id: userId } })
-        .catch(() => { throw new Error("FORBIDDEN: User not found"); });
+    const caller = await prisma.user.findUnique({ where: { id: userId } })
+    if (!caller) throw new Error("FORBIDDEN: User not found");
     if (caller.role === GLOBAL_ADMIN) return null; // bypass
     return prisma.projectMember.findFirst({ where: { userId, projectId } });
 }

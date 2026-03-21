@@ -2,7 +2,6 @@ import prisma from "../utils/prisma";
 import { requireAdminAccess } from "./permissionService";
 // Role constants — mirrors what's stored in the DB
 const GLOBAL_ADMIN = "admin";
-const PROJECT_ADMIN = "project_admin"
 
 /**
  * Create a new project.

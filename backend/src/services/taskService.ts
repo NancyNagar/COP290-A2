@@ -120,10 +120,10 @@ export async function updateTask(
     taskId: string,
     updates: Partial<{
         title: string;
-        description: string;
+        description: string | null;
         priority: string;
-        assigneeId: string;
-        dueDate: Date;
+        assigneeId: string | null;
+        dueDate: Date | null;
     }>
 ) {
     const existing = await prisma.task.findUnique({ where: { id: taskId } });
