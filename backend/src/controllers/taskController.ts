@@ -17,7 +17,7 @@ export async function createTaskController(
 ): Promise<void> {
   try {
     const userId = req.userId;
-    const { title, description, columnId, priority, type, dueDate, assigneeId, reporterId, parentId } = req.body;
+    const { title, description, columnId, boardId, priority, type, dueDate, assigneeId, reporterId, parentId } = req.body;
 
     // Basic validation (same as other controllers)
     if (!title || typeof title !== "string") {
@@ -45,6 +45,7 @@ export async function createTaskController(
       title,
       description ?? null,
       columnId,
+      boardId ?? null,
       priority,
       type ?? "task",
       dueDate ? new Date(dueDate) : null,
@@ -117,7 +118,6 @@ export async function updateTaskController(
     if (priority !== undefined) updates.priority = priority;
     if (assigneeId !== undefined) updates.assigneeId = assigneeId;
     if (dueDate !== undefined) updates.dueDate = new Date(dueDate);
-    if (status !== undefined) updates.status = status;
     if (Object.keys(updates).length === 0) {
       res.status(400).json({ message: "No valid fields provided to update" });
       return;

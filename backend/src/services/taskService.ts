@@ -5,13 +5,14 @@ import { createNotification } from "./notificationService";
 import { checkWipLimit } from "./columnService";
 import { requireProjectAccess, requireWriteAccess, getMembership } from "./permissionService";
 import { logAudit } from "../utils/audit";
-import { getProjectIdFromColumn } from "../utils/resolvers";
+import { getProjectIdFromColumn, getProjectIdFromBoard } from "../utils/resolvers";
 
 export async function createTask(
     callerId: string,    //callerid is the one performing the action
     title: string,
     description: string | null,
-    columnId: string,
+    columnId: string | null, //null for stories
+    boardId: string | null, //null for tasks and bugs
     priority: string,
     type: string, //"story " or "bug" or "task"
     dueDate: Date | null,
@@ -19,41 +20,51 @@ export async function createTask(
     reporterId: string,
     parentId: string | null,
 ) {
-    const projectId = await getProjectIdFromColumn(columnId);
-    await requireWriteAccess(callerId, projectId);
-
     // Validate type
     const validTypes = ["story", "task", "bug"];
     if (!validTypes.includes(type)) {
         throw new Error(`INVALID_TYPE: must be one of ${validTypes.join(", ")}`);
     }
+    let projectId: string;
+    if (type === "story") {
+        // Stories live on a board, not inside a column
+        if (!boardId) throw new Error("INVALID: Stories require a boardId");
+        if (columnId) throw new Error("INVALID: Stories do not belong to a column");
+        if (parentId) throw new Error("INVALID: Stories cannot have a parent task");
 
-    // Stories cannot have a parentId (they are top-level)
-    if (type === "story" && parentId) {
-        throw new Error("INVALID: Stories cannot have a parent task");
-    }
+        projectId = await getProjectIdFromBoard(boardId);
+    } else {
+        // Tasks and Bugs live inside a column
+        if (!columnId) throw new Error("INVALID: Tasks and Bugs require a columnId");
+        if (boardId) throw new Error("INVALID: Only Stories use boardId");
 
-    // Tasks and Bugs linked to a parent must belong to a Story
-    if (parentId) {
-        const parent = await prisma.task.findUnique({ where: { id: parentId } });
-        if (!parent) throw new Error("NOT_FOUND: Parent task not found");
-        if (parent.type !== "story") {
-            throw new Error("INVALID: Only Stories can be parent tasks");
+        // If linked to a parent, it must be a Story
+        if (parentId) {
+            const parent = await prisma.task.findUnique({ where: { id: parentId } });
+            if (!parent) throw new Error("NOT_FOUND: Parent task not found");
+            if (parent.type !== "story") {
+                throw new Error("INVALID: Only Stories can be parent tasks");
+            }
         }
-    }
-    // Check WIP limit for the target column
-    const hasWipLimit = await checkWipLimit(columnId);
-    if (!hasWipLimit) {
-        throw new Error("WIP_LIMIT_REACHED: Cannot create more tasks in this column");
+
+        // Check WIP limit — only applies to columns
+        const hasRoom = await checkWipLimit(columnId);
+        if (!hasRoom) {
+            throw new Error("WIP_LIMIT_REACHED: Cannot create more tasks in this column");
+        }
+
+        projectId = await getProjectIdFromColumn(columnId);
     }
 
+    await requireWriteAccess(callerId, projectId)
 
     const task = await prisma.task.create({
         data: {
             title,
             description,
             type,
-            columnId,
+            columnId: type === "story" ? null : columnId,
+            boardId: type === "story" ? boardId : null,
             priority,
             status: "To Do", //default status for a new task is "To Do"
             dueDate,
@@ -73,7 +84,7 @@ export async function createTask(
     await logAudit(task.id, callerId, "TASK_CREATED", null, title);
     return task;
 }
-/**returns all tasks in a column */
+/**returns all tasks in a column (tasks and bugs only not stories) */
 export async function getTasksByColumn(callerId: string, columnId: string) {
     const projectId = await getProjectIdFromColumn(columnId);
     await requireProjectAccess(callerId, projectId);
@@ -83,8 +94,22 @@ export async function getTasksByColumn(callerId: string, columnId: string) {
         include: {
             assignee: true,
             reporter: true,
-            children: true,   // include child tasks for Stories
         },
+    });
+}
+/** Returns all Stories for a board, each with their children */
+export async function getStoriesByBoard(callerId: string, boardId: string) {
+    const projectId = await getProjectIdFromBoard(boardId);
+    await requireProjectAccess(callerId, projectId);
+
+    return prisma.task.findMany({
+        where: { boardId, type: "story" },
+        include: {
+            children: {
+                include: { assignee: true }
+            }
+        },
+        orderBy: { createdAt: "asc" }
     });
 }
 
@@ -103,9 +128,16 @@ export async function getTaskById(callerId: string, taskId: string) {
     });
     if (!task) throw new Error("NOT_FOUND: Task not found");
 
-    const projectId = await getProjectIdFromColumn(task.columnId);
+    // Stories have boardId, Tasks/Bugs have columnId — resolve projectId accordingly
+    let projectId: string;
+    if (task.type === "story") {
+        if (!task.boardId) throw new Error("CORRUPT: Story is missing boardId");
+        projectId = await getProjectIdFromBoard(task.boardId);
+    } else {
+        if (!task.columnId) throw new Error("CORRUPT: Task is missing columnId");
+        projectId = await getProjectIdFromColumn(task.columnId);
+    }
     await requireProjectAccess(callerId, projectId);
-
     return task;
 }
 
@@ -129,8 +161,15 @@ export async function updateTask(
     const existing = await prisma.task.findUnique({ where: { id: taskId } });
     if (!existing) throw new Error("NOT_FOUND: Task not found");
 
-    const projectId = await getProjectIdFromColumn(existing.columnId);
-    await requireWriteAccess(callerId, projectId);
+    // Resolve projectId depending on whether it's a Story or Task/Bug
+    let projectId: string;
+    if (existing.type === "story") {
+        if (!existing.boardId) throw new Error("CORRUPT: Story is missing boardId");
+        projectId = await getProjectIdFromBoard(existing.boardId);
+    } else {
+        if (!existing.columnId) throw new Error("CORRUPT: Task is missing columnId");
+        projectId = await getProjectIdFromColumn(existing.columnId);
+    }
 
     const task = await prisma.task.update({
         where: { id: taskId },
@@ -154,7 +193,7 @@ export async function updateTask(
 
     return task;
 }
-/**deletes a task */
+/** Deletes a task. Blocks deletion of a Story that still has children. */
 export async function deleteTask(callerId: string, taskId: string) {
     const existing = await prisma.task.findUnique({
         where: { id: taskId },
@@ -162,10 +201,19 @@ export async function deleteTask(callerId: string, taskId: string) {
     });
     if (!existing) throw new Error("NOT_FOUND: Task not found");
 
-    const projectId = await getProjectIdFromColumn(existing.columnId);
+    // Resolve projectId
+    let projectId: string;
+    if (existing.type === "story") {
+        if (!existing.boardId) throw new Error("CORRUPT: Story is missing boardId");
+        projectId = await getProjectIdFromBoard(existing.boardId);
+    } else {
+        if (!existing.columnId) throw new Error("CORRUPT: Task is missing columnId");
+        projectId = await getProjectIdFromColumn(existing.columnId);
+    }
+
     await requireWriteAccess(callerId, projectId);
 
-    // Prevent deleting a Story that still has children
+    // Design decision: block Story deletion if it still has children
     if (existing.type === "story" && existing.children.length > 0) {
         throw new Error(
             "INVALID: Cannot delete a Story that still has child tasks. Remove or reassign them first."
@@ -173,6 +221,12 @@ export async function deleteTask(callerId: string, taskId: string) {
     }
 
     await prisma.task.delete({ where: { id: taskId } });
+
+    // If a Task/Bug with a parent was deleted, re-derive the Story's status
+    // since one of its children is now gone
+    if (existing.parentId) {
+        await deriveStoryStatus(existing.parentId);
+    }
 }
 /**moves a task to a different column and updates its status */
 export async function moveTask(
@@ -182,7 +236,7 @@ export async function moveTask(
 ) {
     const existing = await prisma.task.findUnique({ where: { id: taskId } });
     if (!existing) throw new Error("NOT_FOUND: Task not found");
-
+    if (!existing.columnId) throw new Error("CORRUPT: Task is missing columnId");
     const projectId = await getProjectIdFromColumn(existing.columnId);
     await requireWriteAccess(callerId, projectId);
 
@@ -283,12 +337,25 @@ async function deriveStoryStatus(storyId: string): Promise<void> {
         include: { column: true },
     });
 
+    // If all children were deleted, reset story to "To Do"
+    if (children.length === 0) {
+        await prisma.task.update({
+            where: { id: storyId },
+            data: { status: "To Do" },
+        });
+        return;
+    }
+
+    // Filter out any children with missing column (shouldn't happen, but safe)
+    const childrenWithColumn = children.filter(c => c.column !== null);
+    if (childrenWithColumn.length === 0) return;
+
     const firstChild = children[0];
     if (!firstChild || !firstChild.column) return; // no children or missing column, nothing to derive
 
     // Get all columns of the board this story's children live on,
     // sorted by order so we can reason about position (first, last, furthest)
-    const boardId = firstChild.column.boardId;
+    const boardId = firstChild.column!.boardId;
     const boardColumns = await prisma.column.findMany({
         where: { boardId },
         orderBy: { order: "asc" },
@@ -316,12 +383,10 @@ async function deriveStoryStatus(storyId: string): Promise<void> {
     } else {
         // Find the child that is furthest along (highest column order)
         // and use that column's name as the story status
-        const furthestChild = children.reduce((furthest, child) => {
-            const childOrder = child.column.order;
-            const furthestOrder = furthest.column.order;
-            return childOrder > furthestOrder ? child : furthest;
+        const furthestChild = childrenWithColumn.reduce((furthest, child) => {
+            return child.column!.order > furthest.column!.order ? child : furthest;
         });
-        derivedStatus = furthestChild.column.name;
+        derivedStatus = furthestChild.column!.name;
     }
 
     await prisma.task.update({

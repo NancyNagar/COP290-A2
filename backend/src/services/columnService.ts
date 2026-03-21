@@ -50,6 +50,10 @@ export async function updateColumn(userId: string, columnId: string, name: strin
 /**deletes column by id */
 export async function deleteColumn(userId: string, columnId: string) {
   await checkColumnAdminAccess(userId, columnId);
+  const taskCount = await prisma.task.count({ where: { columnId } });
+  if (taskCount > 0) {
+    throw new Error("INVALID: Cannot delete a column that still has tasks. Move or delete them first.");
+  }
   await prisma.column.delete({
     where: { id: columnId }
   });

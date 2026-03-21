@@ -44,7 +44,6 @@ export async function getBoards(userId: string, projectId: string) {
 
 /**returns a single board by Id with its columns and tasks */
 export async function getBoardById(userId: string, boardId: string) {
-  await requireProjectAccess(userId, boardId);
   const board = await prisma.board.findUnique({
     where: { id: boardId },
     include: {
@@ -52,7 +51,15 @@ export async function getBoardById(userId: string, boardId: string) {
         orderBy: { order: "asc" },
         include: { tasks: true },
       },
+      stories: {
+        include: {
+          children: {
+            include: { assignee: true }
+          }
+        }
+      }
     },
+
   });
 
   if (!board) return null; // controller handles the 404
@@ -90,5 +97,16 @@ export async function deleteBoard(
 
   await prisma.board.delete({
     where: { id: boardId },
+  });
+}
+export async function getStoriesByBoard(userId: string, boardId: string) {
+  const board = await prisma.board.findUnique({ where: { id: boardId } });
+  if (!board) throw new Error("NOT_FOUND: Board not found");
+  await requireProjectAccess(userId, board.projectId);
+
+  return prisma.task.findMany({
+    where: { boardId, type: "story" },
+    include: { children: { include: { assignee: true } } },
+    orderBy: { createdAt: "asc" }
   });
 }

@@ -11,7 +11,7 @@ import {
 const router = Router();
 router.post("/", authMiddleware, createTaskController);
 router.patch("/move/:taskId", authMiddleware, moveTaskController);
-router.get("/:columnId", authMiddleware, getTasksByColumnController);
+router.get("/column/:columnId", authMiddleware, getTasksByColumnController);
 router.get("/:taskId", authMiddleware, getTaskByIdController);
 router.put("/:taskId", authMiddleware, updateTaskController);
 router.delete("/:taskId", authMiddleware, deleteTaskController);

@@ -4,7 +4,8 @@ import {
   getBoards,
   getBoardById,
   updateBoard,
-  deleteBoard
+  deleteBoard,
+  getStoriesByBoard
 } from "../services/boardService";
 import { handleError } from "../utils/httpErrors";
 import "../types/express";
@@ -141,6 +142,30 @@ export async function deleteBoardController(
 
     await deleteBoard(userId, projectId, boardId);
     res.status(204).send();
+  } catch (error) {
+    handleError(res, error);
+  }
+}
+export async function getStoriesByBoardController(
+  req: Request,
+  res: Response
+): Promise<void> {
+  try {
+    const { projectId, boardId } = req.params;
+    const userId = req.userId;
+
+    if (!projectId || typeof projectId !== "string") {
+      res.status(400).json({ message: "Project ID is required" });
+      return;
+    }
+
+    if (!boardId || typeof boardId !== "string") {
+      res.status(400).json({ message: "Board ID is required" });
+      return;
+    }
+
+    const stories = await getStoriesByBoard(userId, boardId);
+    res.json(stories);
   } catch (error) {
     handleError(res, error);
   }
