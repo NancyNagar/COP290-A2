@@ -1,12 +1,13 @@
 import { Request, Response } from "express"; //used for typing express requests
-import { 
-  createProject, 
-  deleteProjectById, 
+import {
+  createProject,
+  deleteProjectById,
   putProjectById,
   archiveProjectById,
   upsertProjectMember,
   removeProjectMember,
-  getProjectMembers } from "../services/projectService";
+  getProjectMembers
+} from "../services/projectService";
 import { getProjects } from "../services/projectService";
 type AuthRequest = Request & { userId: string };//extends express request
 
@@ -21,13 +22,22 @@ function handleError(res: Response, error: unknown): void {
       res.status(400).json({ message: error.message });
       return;
     }
+    //prisma throws P2025 for not found
+    //surface it as 404 instead of letting it fall through to 500
+    if (
+      error.message.startsWith("NOT_FOUND") ||
+      (error as NodeJS.ErrnoException & { code?: string }).code === "P2025"
+    ) {
+      res.status(404).json({ message: "Resource not found" });
+      return;
+    }
   }
   res.status(500).json({ message: "Server error" });
 }
 export async function getProjectsController(
   req: Request,
   res: Response
-):Promise<void> {
+): Promise<void> {
 
   try {
 
@@ -39,7 +49,7 @@ export async function getProjectsController(
     res.json(projects);
 
   } catch (error) {
-    handleError(res,error);
+    handleError(res, error);
   }
 }
 
@@ -47,7 +57,7 @@ export async function getProjectsController(
 export async function createProjectController(
   req: Request,
   res: Response
-):Promise<void> {
+): Promise<void> {
 
   try {
 
@@ -55,19 +65,19 @@ export async function createProjectController(
     const { name, description } = req.body;
 
     if (!name) {
-       res.status(400).json({
+      res.status(400).json({
         message: "Project name is required"
       });
       return;
     }
 
-    const project = await createProject(userId,name, description);
+    const project = await createProject(userId, name, description);
 
     res.status(201).json(project); //can be written just res.json(project)
     //anyways it automatically generates 201 which means resource created
 
   } catch (error) {
-    handleError(res,error);
+    handleError(res, error);
   }
 
 }
@@ -115,7 +125,7 @@ export async function archiveProjectController(
     const userId = (req as AuthRequest).userId;
     const { projectId } = req.params;
 
-    if (!projectId || typeof projectId!=="string") {
+    if (!projectId || typeof projectId !== "string") {
       res.status(400).json({ message: "Project ID is required" });
       return;
     }
@@ -129,22 +139,22 @@ export async function archiveProjectController(
 /**DELETE/projetcs/:prohjetid */
 export async function deleteProjectController(
   req: Request,
-    res: Response
-):Promise<void>{
-    try {
-      const userId = (req as AuthRequest).userId;
-        const { projectId } = req.params;
-        if (!projectId || typeof projectId !== "string") {
-            res.status(400).json({
-                message: "Project ID is required"
-            });
-            return;
-        }
-        await deleteProjectById(userId,projectId);
-        res.status(204).send(); /**204 for delte because delete succeds but no response body is returned */
-    } catch (error) {
-      handleError(res, error);
-    }   
+  res: Response
+): Promise<void> {
+  try {
+    const userId = (req as AuthRequest).userId;
+    const { projectId } = req.params;
+    if (!projectId || typeof projectId !== "string") {
+      res.status(400).json({
+        message: "Project ID is required"
+      });
+      return;
+    }
+    await deleteProjectById(userId, projectId);
+    res.status(204).send(); /**204 for delte because delete succeds but no response body is returned */
+  } catch (error) {
+    handleError(res, error);
+  }
 }
 /**GET/projects/:projetcId/members */
 export async function getProjectMembersController(
@@ -205,7 +215,7 @@ export async function removeProjectMemberController(
     const callerId = (req as AuthRequest).userId;
     const { projectId, targetUserId } = req.params;
 
-    if (!projectId || !targetUserId || typeof projectId !== "string" || typeof targetUserId!== "string") {
+    if (!projectId || !targetUserId || typeof projectId !== "string" || typeof targetUserId !== "string") {
       res.status(400).json({ message: "projectId and targetUserId are required" });
       return;
     }
