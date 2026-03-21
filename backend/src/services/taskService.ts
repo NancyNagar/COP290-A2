@@ -3,69 +3,9 @@ import { isValidTransition } from "../utils/workflow";
 // NOTE: isValidTransition is now async and takes columnIds, not status strings
 import { createNotification } from "./notificationService";
 import { checkWipLimit } from "./columnService";
-const GLOBAL_ADMIN = "admin";
-const PROJECT_VIEWER = "project_viewer";
-
-/**
- * fetches the projectId that a column belongs to.
- * Throws if the column doesn't exist.
- */
-async function getProjectIdFromColumn(columnId: string): Promise<string> {
-    const column = await prisma.column.findUnique({
-        where: { id: columnId },
-        include: { board: true },
-    });
-    if (!column) throw new Error("NOT_FOUND: Column not found");
-    return column.board.projectId;
-}
-
-/**
- * Returns the caller's project-level membership, or null if they have none.
- * Global Admins bypass project membership entirely.
- */
-async function getMembership(userId: string, projectId: string) {
-    const caller = await prisma.user.findUnique({ where: { id: userId } });
-    if (!caller) throw new Error("FORBIDDEN: User not found");
-    if (caller.role === GLOBAL_ADMIN) return null; // global admin — always allowed
-    const membership = await prisma.projectMember.findFirst({
-        where: { userId, projectId },
-    });
-    return membership;
-}
-/**
- * Throws FORBIDDEN unless the caller is a Global Admin or has ANY membership
- * in the project (project_admin, project_member, project_viewer).
- * Used for read operations.
- */
-async function requireProjectAccess(
-    callerId: string,
-    projectId: string
-): Promise<void> {
-    const membership = await getMembership(callerId, projectId);
-    if (membership === null) return; // global admin
-    if (!membership) {
-        throw new Error("FORBIDDEN: You are not a member of this project");
-    }
-}
-
-/**
- * Throws FORBIDDEN unless the caller is a Global Admin or a project_admin /
- * project_member. Project Viewers are read-only.
- * Used for write operations (create, update, delete, move).
- */
-async function requireWriteAccess(
-    callerId: string,
-    projectId: string
-): Promise<void> {
-    const membership = await getMembership(callerId, projectId);
-    if (membership === null) return; // global admin
-    if (!membership) {
-        throw new Error("FORBIDDEN: You are not a member of this project");
-    }
-    if (membership.role === PROJECT_VIEWER) {
-        throw new Error("FORBIDDEN: Project Viewers cannot modify tasks");
-    }
-}
+import { requireProjectAccess, requireWriteAccess, getMembership } from "./permissionService";
+import { logAudit } from "../utils/audit";
+import { getProjectIdFromColumn } from "../utils/resolvers";
 
 export async function createTask(
     callerId: string,    //callerid is the one performing the action
@@ -130,14 +70,7 @@ export async function createTask(
         );
     }
     //stores activity history of the task
-    await prisma.auditLog.create({
-        data: {
-            action: "TASK_CREATED",
-            newValue: title,
-            taskId: task.id,
-            userId: callerId,
-        }
-    });
+    await logAudit(task.id, callerId, "TASK_CREATED", null, title);
     return task;
 }
 /**returns all tasks in a column */
@@ -209,15 +142,7 @@ export async function updateTask(
         updates.assigneeId !== undefined &&
         updates.assigneeId !== existing.assigneeId
     ) {
-        await prisma.auditLog.create({
-            data: {
-                action: "ASSIGNEE_CHANGE",
-                oldValue: existing.assigneeId ?? "unassigned",
-                newValue: updates.assigneeId ?? "unassigned",
-                taskId,
-                userId: callerId,
-            },
-        });
+        await logAudit(taskId, callerId, "ASSIGNEE_CHANGE", existing.assigneeId ?? "unassigned", updates.assigneeId ?? "unassigned");
         //also notify new assignee
         if (updates.assigneeId) {
             await createNotification(
@@ -320,15 +245,7 @@ export async function moveTask(
     });
 
     // Audit: status changed
-    await prisma.auditLog.create({
-        data: {
-            action: "STATUS_CHANGE",
-            oldValue: existing.status,
-            newValue: newStatus,
-            taskId,
-            userId: callerId,
-        },
-    });
+    await logAudit(taskId, callerId, "STATUS_CHANGE", existing.status, newStatus);
 
     // Notify assignee of status change
     if (existing.assigneeId) {

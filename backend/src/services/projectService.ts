@@ -1,34 +1,8 @@
 import prisma from "../utils/prisma";
+import { requireAdminAccess } from "./permissionService";
 // Role constants — mirrors what's stored in the DB
 const GLOBAL_ADMIN = "admin";
 const PROJECT_ADMIN = "project_admin"
-/**
- * Throws "FORBIDDEN" unless the user is a Global Admin OR has a 
- * project_admin role inside the specified project.
- */
-async function checkForProjectAccess(
-  userId: string,
-  projectId: string
-): Promise<void> {
-  const caller = await prisma.user.findUnique({ where: { id: userId } });
-  if (!caller) {
-    throw new Error("FORBIDDEN: User not found");
-  }
-
-  // Global admins can always proceed
-  if (caller.role === GLOBAL_ADMIN) return;
-
-  // Otherwise check project-level role
-  const membership = await prisma.projectMember.findFirst({
-    where: { userId, projectId }
-  });
-
-  if (!membership || membership.role !== PROJECT_ADMIN) {
-    throw new Error(
-      "FORBIDDEN: Only Global Admins or Project Admins can modify this project"
-    );
-  }
-}
 
 /**
  * Create a new project.
@@ -73,7 +47,7 @@ export async function getProjects(userId: string) { /**used aysync ,because data
 }
 /**any updates if done,added to database */
 export async function putProjectById(userID: string, projectId: string, updates: Partial<{ name: string; description: string }>) {
-  await checkForProjectAccess(userID, projectId); //only global admin or that project admin can add those can do updates
+  await requireAdminAccess(userID, projectId); //only global admin or that project admin can add those can do updates
   const project = await prisma.project.update({
     where: {
       id: projectId
@@ -87,7 +61,7 @@ export async function putProjectById(userID: string, projectId: string, updates:
  * Hard delete is kept separate. Allowed: Global Admin or Project Admin.
  */
 export async function archiveProjectById(userId: string, projectId: string) {
-  await checkForProjectAccess(userId, projectId);
+  await requireAdminAccess(userId, projectId);
 
   return prisma.project.update({
     where: { id: projectId },
@@ -96,7 +70,7 @@ export async function archiveProjectById(userId: string, projectId: string) {
 }
 /***permenantly deletes a project */
 export async function deleteProjectById(userId: string, projectId: string) {
-  await checkForProjectAccess(userId, projectId);
+  await requireAdminAccess(userId, projectId);
   await prisma.project.delete({
     where: {
       id: projectId
@@ -113,7 +87,7 @@ export async function upsertProjectMember(
   targetUserId: string,
   role: string
 ) {
-  await checkForProjectAccess(callerId, projectId);
+  await requireAdminAccess(callerId, projectId);
 
   const validRoles = ["project_admin", "project_member", "project_viewer"]; //allowed project roles
   if (!validRoles.includes(role)) {
@@ -136,7 +110,7 @@ export async function removeProjectMember(
   projectId: string,
   targetUserId: string
 ) {
-  await checkForProjectAccess(callerId, projectId);
+  await requireAdminAccess(callerId, projectId);
 
   await prisma.projectMember.deleteMany({
     where: { userId: targetUserId, projectId }

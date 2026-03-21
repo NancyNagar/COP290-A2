@@ -1,44 +1,9 @@
 import prisma from "../utils/prisma";
-
-// Role constants — mirrors what's stored in DB
-const GLOBAL_ADMIN = "admin";
-const PROJECT_ADMIN = "project_admin";
-
-/**helper checks whether user is a project admin or global admin */
-async function checkBoardAccess(userId: string, projectId: string) {
-
-  const user = await prisma.user.findUnique({ where: { id: userId } });
-
-  if (!user) {
-    throw new Error("FORBIDDEN: User not found");
-  }
-
-  if (user.role === GLOBAL_ADMIN) return;
-
-  const membership = await prisma.projectMember.findUnique({
-    where: { userId_projectId: { userId, projectId } },
-  });
-
-  if (!membership || membership.role !== PROJECT_ADMIN) {
-    throw new Error("FORBIDDEN: Only Project Admins can modify boards");
-  }
-}
-
-async function checkReadAccess(userId: string, projectId: string) {
-  const user = await prisma.user.findUnique({ where: { id: userId } });
-  if (!user) throw new Error("FORBIDDEN: User not found");
-  if (user.role === GLOBAL_ADMIN) return;
-
-  const membership = await prisma.projectMember.findUnique({
-    where: { userId_projectId: { userId, projectId } },
-  });
-
-  if (!membership) throw new Error("FORBIDDEN: Not a member of this project");
-}
+import { requireAdminAccess, requireProjectAccess } from "./permissionService";
 
 export async function createBoard(userId: string, projectId: string, name: string) {
 
-  await checkBoardAccess(userId, projectId);
+  await requireAdminAccess(userId, projectId);
 
   /**automatically creates board+4 default columns */
   return await prisma.$transaction(async (tx) => {
@@ -64,7 +29,7 @@ export async function createBoard(userId: string, projectId: string, name: strin
 }
 
 export async function getBoards(userId: string, projectId: string) {
-  await checkReadAccess(userId, projectId);
+  await requireProjectAccess(userId, projectId);
   const boards = await prisma.board.findMany({//retrieves multiple boards for project
     where: { projectId },
     include: {
@@ -79,7 +44,7 @@ export async function getBoards(userId: string, projectId: string) {
 
 /**returns a single board by Id with its columns and tasks */
 export async function getBoardById(userId: string, boardId: string) {
-  await checkReadAccess(userId, boardId);
+  await requireProjectAccess(userId, boardId);
   const board = await prisma.board.findUnique({
     where: { id: boardId },
     include: {
@@ -93,7 +58,7 @@ export async function getBoardById(userId: string, boardId: string) {
   if (!board) return null; // controller handles the 404
 
   // Now check read access using the board's projectId
-  await checkBoardAccess(userId, board.projectId);
+  await requireProjectAccess(userId, board.projectId);
 
   return board;
 }
@@ -106,7 +71,7 @@ export async function updateBoard(
   name: string
 ) {
 
-  await checkBoardAccess(userId, projectId);
+  await requireAdminAccess(userId, projectId);
 
   return await prisma.board.update({
     where: { id: boardId },
@@ -121,7 +86,7 @@ export async function deleteBoard(
   boardId: string
 ) {
 
-  await checkBoardAccess(userId, projectId);
+  await requireAdminAccess(userId, projectId);
 
   await prisma.board.delete({
     where: { id: boardId },

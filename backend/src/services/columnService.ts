@@ -1,72 +1,23 @@
 import prisma from "../utils/prisma";
+import { getProjectIdFromBoard, getBoardIdFromColumn } from "../utils/resolvers";
+import { requireAdminAccess, requireProjectAccess } from "./permissionService";
 const GLOBAL_ADMIN = "admin";
 const PROJECT_ADMIN = "project_admin";
 
-/** check if user is allowed to modify board */
-async function checkBoardAccess(userId: string, boardId: string) {
-
-  const board = await prisma.board.findUnique({
-    where: { id: boardId },
-    select: { projectId: true },
-  });
-
-  if (!board) {
-    throw new Error("FORBIDDEN: Board not found");
-  }
-
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-  });
-
-  if (!user) {
-    throw new Error("FORBIDDEN: User not found");
-  }
-
-  if (user.role === GLOBAL_ADMIN) return; //if user is global admin ,they can modify any board
-  /**checks if user is a member of the project that owns the board */
-  const membership = await prisma.projectMember.findUnique({
-    where: {
-      userId_projectId: {
-        userId,
-        projectId: board.projectId, //schema contains the composite key of userId and projectId
-      },
-    },
-  });
-
-  if (!membership || membership.role !== PROJECT_ADMIN) {
-    throw new Error("FORBIDDEN: Only Project Admins can modify columns");
-  }
+/** Resolves projectId from boardId, then checks admin access. */
+async function checkBoardAdminAccess(userId: string, boardId: string) {
+  const projectId = await getProjectIdFromBoard(boardId);
+  await requireAdminAccess(userId, projectId);
 }
-/**check if user is allowed to read board */
-async function checkReadAccess(userId: string, boardId: string) {
-  const board = await prisma.board.findUnique({
-    where: { id: boardId },
-    select: { projectId: true },
-  });
-  if (!board) throw new Error("FORBIDDEN: Board not found");
 
-  const user = await prisma.user.findUnique({ where: { id: userId } });
-  if (!user) throw new Error("FORBIDDEN: User not found");
-  if (user.role === GLOBAL_ADMIN) return;
-
-  const membership = await prisma.projectMember.findUnique({
-    where: { userId_projectId: { userId, projectId: board.projectId } },
-  });
-  if (!membership) throw new Error("FORBIDDEN: Not a project member");
-  // any role (admin, member, viewer) can read
-}
-/**check if user is allowed to modify column,when only column is given */
-async function checkBoardAccessByColumn(userId: string, columnId: string) {
-  const column = await prisma.column.findUnique({
-    where: { id: columnId },
-    select: { boardId: true },
-  });
-  if (!column) throw new Error("FORBIDDEN: Column not found");
-  await checkBoardAccess(userId, column.boardId);
+/** Same as above but starting from a columnId. */
+async function checkColumnAdminAccess(userId: string, columnId: string) {
+  const boardId = await getBoardIdFromColumn(columnId);
+  await checkBoardAdminAccess(userId, boardId);
 }
 /**craetes a new column on a board at the given ordr position */
 export async function createColumn(userId: string, boardId: string, name: string, order: number) {
-  await checkBoardAccess(userId, boardId);
+  await checkBoardAdminAccess(userId, boardId);
   const column = await prisma.column.create({
     data: {
       name,
@@ -78,7 +29,8 @@ export async function createColumn(userId: string, boardId: string, name: string
 }
 /**returns columns in ascending order */
 export async function getColumns(userId: string, boardId: string) {
-  await checkReadAccess(userId, boardId);
+  const projectId = await getProjectIdFromBoard(boardId);
+  await requireProjectAccess(userId, projectId);
   const columns = await prisma.column.findMany({
     where: { boardId },
     include: { tasks: true },
@@ -88,7 +40,7 @@ export async function getColumns(userId: string, boardId: string) {
 }
 /**renames a column */
 export async function updateColumn(userId: string, columnId: string, name: string) {
-  await checkBoardAccessByColumn(userId, columnId);
+  await checkColumnAdminAccess(userId, columnId);
   const column = await prisma.column.update({
     where: { id: columnId },
     data: { name }
@@ -97,14 +49,14 @@ export async function updateColumn(userId: string, columnId: string, name: strin
 }
 /**deletes column by id */
 export async function deleteColumn(userId: string, columnId: string) {
-  await checkBoardAccessByColumn(userId, columnId);
+  await checkColumnAdminAccess(userId, columnId);
   await prisma.column.delete({
     where: { id: columnId }
   });
 }
 /**reorders column */
 export async function reorderColumns(userId: string, boardId: string, orderedIds: string[]) {
-  await checkBoardAccess(userId, boardId);
+  await checkBoardAdminAccess(userId, boardId);
 
   // Verify all column IDs actually belong to this board
   const columns = await prisma.column.findMany({
@@ -131,7 +83,7 @@ export async function updateWipLimit(
   columnId: string,
   wipLimit: number | null
 ) {
-  await checkBoardAccessByColumn(userId, columnId);
+  await checkColumnAdminAccess(userId, columnId);
 
   if (wipLimit !== null && (wipLimit < 1 || !Number.isInteger(wipLimit))) {
     throw new Error("WIP_LIMIT_INVALID");
@@ -166,7 +118,7 @@ export async function setAllowedTransitions(
   columnId: string,
   allowedNextColumnIds: string[] | null
 ) {
-  await checkBoardAccessByColumn(userId, columnId);
+  await checkColumnAdminAccess(userId, columnId);
 
   if (allowedNextColumnIds !== null && allowedNextColumnIds.length > 0) {
     const sourceColumn = await prisma.column.findUnique({
