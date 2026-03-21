@@ -1,11 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { verifyAccessToken } from "../utils/jwt"; // uses ACCESS_SECRET
-
-const JWT_SECRET = process.env.JWT_SECRET || "supersecret";
-
-interface AuthRequest extends Request {
-  userId?: string;
-}
+import "../types/express";
 
 /*it recieves
  req → incoming request
@@ -13,7 +8,7 @@ res → response object
 next → move to next step
 */
 export function authMiddleware(
-  req: AuthRequest,
+  req: Request,
   res: Response,
   next: NextFunction
 ) {

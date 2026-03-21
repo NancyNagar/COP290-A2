@@ -1,22 +1,7 @@
 import { Request, Response } from "express";
 import { createColumn, updateColumn, deleteColumn, getColumns, reorderColumns, updateWipLimit, setAllowedTransitions } from "../services/columnService";
-type AuthRequest = Request & { userId: string };
+import { handleError } from "../utils/httpErrors";
 
-// reusable error handler (same pattern as boardController)
-function handleError(res: Response, error: unknown): void {
-  if (error instanceof Error) {
-    if (error.message.startsWith("FORBIDDEN")) {
-      res.status(403).json({ message: error.message });
-      return;
-    }
-    if (error.message === "WIP_LIMIT_INVALID") {
-      res.status(400).json({ message: "wipLimit must be a positive integer or null" });
-      return;
-    }
-  }
-
-  res.status(500).json({ message: "Server error" });
-}
 
 /** POST /boards/:boardId/columns */
 export async function createColumnController(
@@ -26,7 +11,7 @@ export async function createColumnController(
   try {
     const { boardId } = req.params;
     const { name, order } = req.body;
-    const userId = (req as AuthRequest).userId;
+    const userId = req.userId;
 
     if (!boardId || typeof boardId !== "string") {
       res.status(400).json({ message: "Board ID is required" });
@@ -58,7 +43,7 @@ export async function getColumnsController(
 ): Promise<void> {
   try {
     const { boardId } = req.params;
-    const userId = (req as AuthRequest).userId;
+    const userId = req.userId;
 
     if (!boardId || typeof boardId !== "string") {
       res.status(400).json({ message: "Board ID is required" });
@@ -81,7 +66,7 @@ export async function updateColumnController(
   try {
     const { columnId } = req.params;
     const { name } = req.body;
-    const userId = (req as AuthRequest).userId;
+    const userId = req.userId;
 
     if (!columnId || typeof columnId !== "string") {
       res.status(400).json({ message: "Column ID is required" });
@@ -108,7 +93,7 @@ export async function deleteColumnController(
 ): Promise<void> {
   try {
     const { columnId } = req.params;
-    const userId = (req as AuthRequest).userId;
+    const userId = req.userId;
 
     if (!columnId || typeof columnId !== "string") {
       res.status(400).json({ message: "Column ID is required" });
@@ -134,7 +119,7 @@ export async function reorderColumnsController(
   try {
     const { boardId } = req.params;
     const { orderedIds } = req.body;
-    const userId = (req as AuthRequest).userId;
+    const userId = req.userId;
 
     if (!boardId || typeof boardId !== "string") {
       res.status(400).json({ message: "Board ID is required" });
@@ -166,7 +151,7 @@ export async function updateWipLimitController(
   try {
     const { columnId } = req.params;
     const { wipLimit } = req.body;
-    const userId = (req as AuthRequest).userId;
+    const userId = req.userId;
 
     if (!columnId || typeof columnId !== "string") {
       res.status(400).json({ message: "Column ID is required" });
@@ -196,7 +181,7 @@ export async function setAllowedTransitionsController(
   try {
     const { columnId } = req.params;
     const { allowedNextColumnIds } = req.body;
-    const userId = (req as AuthRequest).userId;
+    const userId = req.userId;
 
     if (!columnId || typeof columnId !== "string") {
       res.status(400).json({ message: "Column ID is required" });

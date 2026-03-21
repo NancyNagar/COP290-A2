@@ -6,19 +6,10 @@ import {
   updateBoard,
   deleteBoard
 } from "../services/boardService";
+import { handleError } from "../utils/httpErrors";
+import "../types/express";
 
-type AuthRequest = Request & { userId: string };
 
-// reusable error handler (same pattern as projectController)
-function handleError(res: Response, error: unknown): void {
-  if (error instanceof Error) {
-    if (error.message.startsWith("FORBIDDEN")) {
-      res.status(403).json({ message: error.message });
-      return;
-    }
-  }
-  res.status(500).json({ message: "Server error" });
-}
 
 // only project admins can create boards
 /**handles POST /projects/:projectId/boards */
@@ -29,7 +20,7 @@ export async function createBoardController(
   try {
     const { projectId } = req.params;
     const { name } = req.body;
-    const userId = (req as AuthRequest).userId;
+    const userId = req.userId;
 
     if (!name) {
       res.status(400).json({ message: "Board name is required" });
@@ -56,7 +47,7 @@ export async function getBoardsController(
 ): Promise<void> {
   try {
     const { projectId } = req.params;
-    const userId = (req as AuthRequest).userId;
+    const userId = req.userId;
     if (!projectId || typeof projectId !== "string") {
       res.status(400).json({ message: "Project ID is required" });
       return;
@@ -75,7 +66,7 @@ export async function getBoardByIdController(
 ): Promise<void> {
   try {
     const { boardId } = req.params;
-    const userId = (req as AuthRequest).userId;
+    const userId = req.userId;
 
     if (!boardId || typeof boardId !== "string") {
       res.status(400).json({ message: "Board ID is required" });
@@ -104,7 +95,7 @@ export async function updateBoardController(
   try {
     const { projectId, boardId } = req.params;
     const { name } = req.body;
-    const userId = (req as AuthRequest).userId;
+    const userId = req.userId;
 
     if (!name) {
       res.status(400).json({ message: "Board name is required" });
@@ -136,7 +127,7 @@ export async function deleteBoardController(
 ): Promise<void> {
   try {
     const { projectId, boardId } = req.params;
-    const userId = (req as AuthRequest).userId;
+    const userId = req.userId;
 
     if (!projectId || typeof projectId !== "string") {
       res.status(400).json({ message: "Project ID is required" });

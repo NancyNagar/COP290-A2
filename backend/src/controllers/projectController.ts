@@ -9,31 +9,9 @@ import {
   getProjectMembers
 } from "../services/projectService";
 import { getProjects } from "../services/projectService";
-type AuthRequest = Request & { userId: string };//extends express request
+import { handleError } from "../utils/httpErrors";
 
-// Reusable helper — keeps catch blocks DRY(need not to repeat)
-function handleError(res: Response, error: unknown): void {
-  if (error instanceof Error) {
-    if (error.message.startsWith("FORBIDDEN")) {
-      res.status(403).json({ message: error.message });
-      return;
-    }
-    if (error.message.startsWith("INVALID_ROLE")) {
-      res.status(400).json({ message: error.message });
-      return;
-    }
-    //prisma throws P2025 for not found
-    //surface it as 404 instead of letting it fall through to 500
-    if (
-      error.message.startsWith("NOT_FOUND") ||
-      (error as NodeJS.ErrnoException & { code?: string }).code === "P2025"
-    ) {
-      res.status(404).json({ message: "Resource not found" });
-      return;
-    }
-  }
-  res.status(500).json({ message: "Server error" });
-}
+
 export async function getProjectsController(
   req: Request,
   res: Response
@@ -61,7 +39,7 @@ export async function createProjectController(
 
   try {
 
-    const userId = (req as AuthRequest).userId;
+    const userId = req.userId;
     const { name, description } = req.body;
 
     if (!name) {
@@ -87,7 +65,7 @@ export async function putProjectController(
   res: Response
 ): Promise<void> {
   try {
-    const userId = (req as AuthRequest).userId;
+    const userId = req.userId;
     const { projectId } = req.params;
 
     if (!projectId || typeof projectId !== "string") {
@@ -122,7 +100,7 @@ export async function archiveProjectController(
   res: Response
 ): Promise<void> {
   try {
-    const userId = (req as AuthRequest).userId;
+    const userId = req.userId;
     const { projectId } = req.params;
 
     if (!projectId || typeof projectId !== "string") {
@@ -142,7 +120,7 @@ export async function deleteProjectController(
   res: Response
 ): Promise<void> {
   try {
-    const userId = (req as AuthRequest).userId;
+    const userId = req.userId;
     const { projectId } = req.params;
     if (!projectId || typeof projectId !== "string") {
       res.status(400).json({
@@ -162,7 +140,7 @@ export async function getProjectMembersController(
   res: Response
 ): Promise<void> {
   try {
-    const userId = (req as AuthRequest).userId;
+    const userId = req.userId;
     const { projectId } = req.params;
 
     if (!projectId || typeof projectId !== "string") {
@@ -182,7 +160,7 @@ export async function upsertProjectMemberController(
   res: Response
 ): Promise<void> {
   try {
-    const callerId = (req as AuthRequest).userId;
+    const callerId = req.userId;
     const { projectId } = req.params;
     const { userId: targetUserId, role } = req.body;
 
@@ -212,7 +190,7 @@ export async function removeProjectMemberController(
   res: Response
 ): Promise<void> {
   try {
-    const callerId = (req as AuthRequest).userId;
+    const callerId = req.userId;
     const { projectId, targetUserId } = req.params;
 
     if (!projectId || !targetUserId || typeof projectId !== "string" || typeof targetUserId !== "string") {

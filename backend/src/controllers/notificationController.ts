@@ -3,13 +3,13 @@ import {
   getNotifications,
   markNotificationRead
 } from "../services/notificationService";
-type AuthRequest = Request & { userId: string };
+
 export async function getNotificationsController(
   req: Request,
   res: Response
 ) {
   try {
-    const userId = (req as AuthRequest).userId;
+    const userId = req.userId;
     const notifications = await getNotifications(userId);
     res.json(notifications);
   } catch (error) {

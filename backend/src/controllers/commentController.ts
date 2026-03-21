@@ -5,27 +5,8 @@ import {
   updateComment,
   deleteComment,
 } from "../services/commentService";
+import { handleError } from "../utils/httpErrors";
 
-type AuthRequest = Request & { userId: string };
-
-// Reusable helper — keeps catch blocks DRY
-function handleError(res: Response, error: unknown): void {
-  if (error instanceof Error) {
-    if (error.message.startsWith("FORBIDDEN")) {
-      res.status(403).json({ message: error.message });
-      return;
-    }
-    if (error.message.startsWith("NOT_FOUND")) {
-      res.status(404).json({ message: error.message });
-      return;
-    }
-    if (error.message.startsWith("INVALID")) {
-      res.status(400).json({ message: error.message });
-      return;
-    }
-  }
-  res.status(500).json({ message: "Server error" });
-}
 
 /** POST /tasks/:taskId/comments */
 export async function createCommentController(
@@ -33,7 +14,7 @@ export async function createCommentController(
   res: Response
 ): Promise<void> {
   try {
-    const userId = (req as AuthRequest).userId;
+    const userId = req.userId;
     const { taskId } = req.params;
     const { content } = req.body;
 
@@ -80,7 +61,7 @@ export async function updateCommentController(
   res: Response
 ): Promise<void> {
   try {
-    const userId = (req as AuthRequest).userId;
+    const userId = req.userId;
     const { commentId } = req.params;
 
     if (!commentId || typeof commentId !== "string") {
@@ -108,7 +89,7 @@ export async function deleteCommentController(
   res: Response
 ): Promise<void> {
   try {
-    const userId = (req as AuthRequest).userId;
+    const userId = req.userId;
     const { commentId } = req.params;
 
     if (!commentId || typeof commentId !== "string") {
