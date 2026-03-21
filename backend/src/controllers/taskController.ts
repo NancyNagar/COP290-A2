@@ -133,7 +133,7 @@ export async function updateTaskController(
       return;
     }
 
-    const { title, description, priority, dueDate, assigneeId } = req.body;
+    const { title, description, priority, dueDate, assigneeId, status } = req.body;
 
     const updates: Record<string, unknown> = {};
     if (title !== undefined) updates.title = title;
@@ -141,7 +141,7 @@ export async function updateTaskController(
     if (priority !== undefined) updates.priority = priority;
     if (assigneeId !== undefined) updates.assigneeId = assigneeId;
     if (dueDate !== undefined) updates.dueDate = new Date(dueDate);
-
+    if (status !== undefined) updates.status = status;
     if (Object.keys(updates).length === 0) {
       res.status(400).json({ message: "No valid fields provided to update" });
       return;

@@ -2,7 +2,7 @@ import prisma from "../utils/prisma";
 import { isValidTransition } from "../utils/workflow";
 // NOTE: isValidTransition is now async and takes columnIds, not status strings
 import { createNotification } from "./notificationService";
-import { checkWipLimit } from "./coloumService";
+import { checkWipLimit } from "./columnService";
 const GLOBAL_ADMIN = "admin";
 const PROJECT_VIEWER = "project_viewer";
 
@@ -176,7 +176,12 @@ export async function getTaskById(callerId: string, taskId: string) {
     return task;
 }
 
-/**updates a task */
+/**updates a task,used for
+ * editing fileds
+ * manually setting story status
+ * changing assignee
+ */
+
 export async function updateTask(
     callerId: string,
     taskId: string,
@@ -186,6 +191,7 @@ export async function updateTask(
         priority: string;
         assigneeId: string;
         dueDate: Date;
+        status: string;
     }>
 ) {
     const existing = await prisma.task.findUnique({ where: { id: taskId } });
@@ -194,29 +200,106 @@ export async function updateTask(
     const projectId = await getProjectIdFromColumn(existing.columnId);
     await requireWriteAccess(callerId, projectId);
 
+    if (updates.status !== undefined) {
+        if (existing.type !== "story") {
+            throw new Error(
+                "INVALID: Only Story status can be set manually. Tasks and Bugs derive status from their column."
+            );
+        }
+
+        // Validate: the requested status must be a column name that exists on
+        // the same board, so it is a real workflow state.
+        const sourceColumn = await prisma.column.findUnique({
+            where: { id: existing.columnId },
+            include: { board: { include: { columns: true } } },
+        });
+        if (!sourceColumn) throw new Error("NOT_FOUND: Column not found");
+
+        const validStatuses = sourceColumn.board.columns.map((c) => c.name);
+        if (!validStatuses.includes(updates.status)) {
+            throw new Error(
+                `INVALID: Story status must be one of the board's column names: ${validStatuses.join(", ")}`
+            );
+        }
+        // Consistency check: manually set status must be compatible with children.
+        // Rule: the Story cannot be set to a status that is "further ahead" than
+        // ALL of its children, and cannot be set to "done" (last column) while
+        // any child is not in the last column.
+        const children = await prisma.task.findMany({
+            where: { parentId: taskId },
+            include: { column: true },
+        });
+
+        if (children.length > 0) {
+            const boardColumns = sourceColumn.board.columns.sort(
+                (a, b) => a.order - b.order
+            );//sort columns based on order becoause workflow is defined by order
+            const lastColumnName = boardColumns[boardColumns.length - 1]?.name;
+            const requestedOrder = boardColumns.findIndex(
+                (c) => c.name === updates.status
+            );//index of the requested status
+            //max index of the children
+            //gives most advanced child
+            const maxChildOrder = Math.max(
+                ...children.map((ch) =>
+                    boardColumns.findIndex((c) => c.name === ch.column.name)
+                )
+            );
+
+            // Cannot mark the story as done if any child isn't done
+            if (
+                updates.status === lastColumnName &&
+                children.some((ch) => ch.column.name !== lastColumnName)
+            ) {
+                throw new Error(
+                    "INVALID: Cannot mark Story as done while it still has incomplete children"
+                );
+            }
+
+            // Cannot set story behind all children (e.g., "To Do" when all are "Done")
+            if (requestedOrder < maxChildOrder - 1) {
+                throw new Error(
+                    "INVALID: Story status cannot be set behind its most advanced child's status"
+                );
+            }
+        }
+
+        // Audit the manual status change
+        await prisma.auditLog.create({
+            data: {
+                action: "STATUS_CHANGE",
+                oldValue: existing.status,
+                newValue: updates.status,
+                taskId,
+                userId: callerId,
+            },
+        });
+    }
+    //update task in db
     const task = await prisma.task.update({
         where: { id: taskId },
         data: updates,
     });
 
     // Audit: assignee changed
+    const newAssigneeId = updates.assigneeId;
     if (
-        updates.assigneeId !== undefined &&
-        updates.assigneeId !== existing.assigneeId
+        newAssigneeId !== undefined &&
+        newAssigneeId !== existing.assigneeId
     ) {
         await prisma.auditLog.create({
             data: {
                 action: "ASSIGNEE_CHANGE",
                 oldValue: existing.assigneeId ?? "unassigned",
-                newValue: updates.assigneeId ?? "unassigned",
+                newValue: newAssigneeId ?? "unassigned",
                 taskId,
                 userId: callerId,
             },
         });
         //also notify new assignee
-        if (updates.assigneeId) {
+        if (newAssigneeId) {
             await createNotification(
-                updates.assigneeId,
+                newAssigneeId,
                 `You were assigned task: ${existing.title}`
             );
         }
