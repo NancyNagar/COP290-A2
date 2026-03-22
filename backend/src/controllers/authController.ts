@@ -224,3 +224,17 @@ export async function updateProfile(req: Request, res: Response): Promise<void> 
     res.status(500).json({ message: "Server error" });
   }
 }
+
+export async function getMe(req: Request, res: Response): Promise<void> {
+  try {
+    const userId = req.userId;
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, name: true, email: true, avatar: true, role: true }
+    });
+    if (!user) { res.status(404).json({ message: "User not found" }); return; }
+    res.json({ user });
+  } catch {
+    res.status(500).json({ message: "Server error" });
+  }
+}

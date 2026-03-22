@@ -7,8 +7,8 @@ import {
   deleteCommentController
 } from "../controllers/commentController";
 const router = Router();
-router.post("/:taskId", authMiddleware, createCommentController);
-router.get("/:taskId", authMiddleware, getCommentsController);
+router.post("/tasks/:taskId", authMiddleware, createCommentController);
+router.get("/tasks/:taskId", authMiddleware, getCommentsController);
 router.put("/:commentId", authMiddleware, updateCommentController);
 router.delete("/:commentId", authMiddleware, deleteCommentController);
 export default router;

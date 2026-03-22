@@ -5,6 +5,7 @@ import projectRoutes from "./routes/projectRoutes";
 import boardRoutes from "./routes/boardRoutes";
 import taskRoutes from "./routes/taskRoutes";
 import commentRoutes from "./routes/commentRoutes";
+import columnRoutes from "./routes/columnRoutes";
 import notificationRoutes from "./routes/notificationRoutes";
 import userRoutes from "./routes/userRoutes";
 import dotenv from "dotenv";
@@ -30,6 +31,7 @@ app.use("/api/projects", projectRoutes);
 app.use("/api", boardRoutes);
 app.use("/api/tasks", taskRoutes);
 app.use("/api/comments", commentRoutes);
+app.use("/api", columnRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api", userRoutes);
 if (process.env.NODE_ENV !== "test") {

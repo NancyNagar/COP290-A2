@@ -33,6 +33,7 @@ export async function createTask(
         if (parentId) throw new Error("INVALID: Stories cannot have a parent task");
 
         projectId = await getProjectIdFromBoard(boardId);
+        await requireWriteAccess(callerId, projectId);
     } else {
         // Tasks and Bugs live inside a column
         if (!columnId) throw new Error("INVALID: Tasks and Bugs require a columnId");
@@ -48,20 +49,11 @@ export async function createTask(
         }
 
         // Check WIP limit — only applies to columns
-        const hasRoom = await checkWipLimit(columnId);
-        if (!hasRoom) {
-            throw new Error("WIP_LIMIT_REACHED: Cannot create more tasks in this column");
-        }
-
         projectId = await getProjectIdFromColumn(columnId);
-    }
-    // Auth checked BEFORE WIP limit — a viewer must get FORBIDDEN,
-    // not WIP_LIMIT_REACHED, regardless of how full the column is.
-    await requireWriteAccess(callerId, projectId);
-
-    // WIP limit only applies to columns (Tasks and Bugs), not Stories
-    if (type !== "story") {
-        const hasRoom = await checkWipLimit(columnId!);
+        // Auth checked BEFORE WIP limit — a viewer must get FORBIDDEN,
+        // not WIP_LIMIT_REACHED, regardless of how full the column is.
+        await requireWriteAccess(callerId, projectId);
+        const hasRoom = await checkWipLimit(columnId); 
         if (!hasRoom) {
             throw new Error("WIP_LIMIT_REACHED: Cannot create more tasks in this column");
         }
@@ -248,17 +240,15 @@ export async function moveTask(
 ) {
     const existing = await prisma.task.findUnique({ where: { id: taskId } });
     if (!existing) throw new Error("NOT_FOUND: Task not found");
-    if (!existing.columnId) throw new Error("CORRUPT: Task is missing columnId");
-    const projectId = await getProjectIdFromColumn(existing.columnId);
-    await requireWriteAccess(callerId, projectId);
-
-    // Stories are not directly movable across columns
     if (existing.type === "story") {
         throw new Error("INVALID: Stories cannot be moved directly across columns");
     }
-    if (!existing.columnId) {
+    if (!existing.columnId){
         throw new Error("CORRUPT: Task is missing columnId");
     }
+    const projectId = await getProjectIdFromColumn(existing.columnId);
+    await requireWriteAccess(callerId, projectId);
+
     // Validate the transition using allowedNextColumns on the source column
     const validMove = await isValidTransition(existing.columnId, newColumnId);
     if (!validMove) {

@@ -1,6 +1,5 @@
 import { Request, Response, NextFunction } from "express";
 import { verifyAccessToken } from "../utils/jwt"; // uses ACCESS_SECRET
-import "../types/express";
 
 /*it recieves
  req → incoming request

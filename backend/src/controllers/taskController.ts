@@ -8,7 +8,6 @@ import {
   moveTask,
 } from "../services/taskService";
 import { handleError } from "../utils/httpErrors";
-import "../types/express";
 
 /**POST/tasks */
 export async function createTaskController(
@@ -31,7 +30,11 @@ export async function createTaskController(
         return;
       }
     }
-
+    if (!title || typeof title !== "string" || title.trim().length === 0) {
+      res.status(400).json({ message: "title is required" });
+      return;
+    }
+    
     if (!priority || typeof priority !== "string") {
       res.status(400).json({ message: "priority is required" });
       return;

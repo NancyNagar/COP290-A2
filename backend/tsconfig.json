@@ -45,5 +45,10 @@
     "skipLibCheck": true,
     "esModuleInterop": true,
     "moduleResolution": "node16",
+  },
+  "include": ["src/**/*"],
+  "files": ["src/types/express.d.ts"],
+  "ts-node": {
+    "files": true
   }
 }

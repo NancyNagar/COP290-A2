@@ -4,6 +4,7 @@ generator client {
 
 datasource db {
   provider = "sqlite"
+  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -115,7 +116,7 @@ model Comment {
   taskId String
   userId String
 
-  task Task @relation(fields: [taskId], references: [id])
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id])
 }
 
@@ -138,7 +139,7 @@ model AuditLog {
 
   taskId String
   userId String   // who performed the action
-  task   Task @relation(fields: [taskId], references: [id])
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
   user   User @relation(fields: [userId], references: [id])
 }
 model RefreshToken {

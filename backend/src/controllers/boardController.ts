@@ -9,7 +9,6 @@ import {
   setBoardTimestampColumns
 } from "../services/boardService";
 import { handleError } from "../utils/httpErrors";
-import "../types/express";
 
 
 
