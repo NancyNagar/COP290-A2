@@ -55,8 +55,17 @@ export async function createTask(
 
         projectId = await getProjectIdFromColumn(columnId);
     }
+    // Auth checked BEFORE WIP limit — a viewer must get FORBIDDEN,
+    // not WIP_LIMIT_REACHED, regardless of how full the column is.
+    await requireWriteAccess(callerId, projectId);
 
-    await requireWriteAccess(callerId, projectId)
+    // WIP limit only applies to columns (Tasks and Bugs), not Stories
+    if (type !== "story") {
+        const hasRoom = await checkWipLimit(columnId!);
+        if (!hasRoom) {
+            throw new Error("WIP_LIMIT_REACHED: Cannot create more tasks in this column");
+        }
+    }
 
     const task = await prisma.task.create({
         data: {
@@ -285,13 +294,30 @@ export async function moveTask(
         select: { id: true },
     });
     const isLastColumn = boardColumns[boardColumns.length - 1]?.id === newColumnId;
+    // FIX 3: Use board-configured resolvedColumnId and closedColumnId
+    // instead of hardcoding "last column = resolved". Project Admin sets
+    // these via PATCH /api/boards/:boardId/timestamp-columns.
+    const board = await prisma.board.findUnique({
+        where: { id: destColumn.boardId },
+        select: { resolvedColumnId: true, closedColumnId: true },
+    });
+    // Set resolvedAt when task enters the configured resolved column (first time only).
+    // Clear it if the task moves back out of that column.
+    const resolvedAt =
+        board?.resolvedColumnId === newColumnId
+            ? (existing.resolvedAt ?? new Date())
+            : board?.resolvedColumnId !== null && board?.resolvedColumnId !== undefined
+                ? null
+                : existing.resolvedAt;
 
-    // Set resolvedAt the first time a task reaches the terminal (last) column
-    const resolvedAt = isLastColumn
-        ? (existing.resolvedAt ?? new Date())
-        : existing.resolvedAt;
-    // closedAt is not tied to a column name — keep as-is
-    const closedAt = existing.closedAt;
+    // Set closedAt when task enters the configured closed column (first time only).
+    // Clear it if the task moves back out of that column.
+    const closedAt =
+        board?.closedColumnId === newColumnId
+            ? (existing.closedAt ?? new Date())
+            : board?.closedColumnId !== null && board?.closedColumnId !== undefined
+                ? null
+                : existing.closedAt;
 
     const updatedTask = await prisma.task.update({
         where: { id: taskId },
@@ -351,16 +377,17 @@ async function deriveStoryStatus(storyId: string): Promise<void> {
         return;
     }
 
-    // Filter out any children with missing column (shouldn't happen, but safe)
-    const childrenWithColumn = children.filter(c => c.column !== null);
+    const childrenWithColumn = children.filter(
+        (c): c is typeof c & { column: NonNullable<typeof c.column> } =>
+            c.column !== null
+    );
     if (childrenWithColumn.length === 0) return;
-
-    const firstChild = children[0];
-    if (!firstChild || !firstChild.column) return; // no children or missing column, nothing to derive
 
     // Get all columns of the board this story's children live on,
     // sorted by order so we can reason about position (first, last, furthest)
-    const boardId = firstChild.column!.boardId;
+    const firstCol = childrenWithColumn[0]?.column;
+    if (!firstCol) return;
+    const boardId = firstCol.boardId;
     const boardColumns = await prisma.column.findMany({
         where: { boardId },
         orderBy: { order: "asc" },
