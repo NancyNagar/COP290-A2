@@ -36,15 +36,22 @@ export async function createComment(
         },
     });
 
-    // Notify the task's assignee about the new comment
+    // Notify the task's assignee and reporter about the new comment
     const task = await prisma.task.findUnique({
         where: { id: taskId },
-        select: { assigneeId: true },
+        select: { assigneeId: true, reporterId: true },
     });
 
-    if (task?.assigneeId && task.assigneeId !== userId) {
-        await createNotification(task.assigneeId, "New comment on your task");
-    }
+    const stakeholders = new Set([task?.assigneeId, task?.reporterId]);
+    stakeholders.delete(userId);   // don't notify the person who just commented
+    stakeholders.delete(null);
+    stakeholders.delete(undefined);
+
+    await Promise.all(
+        [...stakeholders].map((id) =>
+            createNotification(id as string, "New comment on your task")
+        )
+    )
 
     // Notify any @mentioned users
     const mentionedUsernames = extractMentions(content);

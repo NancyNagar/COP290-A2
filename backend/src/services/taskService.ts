@@ -170,7 +170,7 @@ export async function updateTask(
         if (!existing.columnId) throw new Error("CORRUPT: Task is missing columnId");
         projectId = await getProjectIdFromColumn(existing.columnId);
     }
-
+    await requireWriteAccess(callerId, projectId);
     const task = await prisma.task.update({
         where: { id: taskId },
         data: updates,
@@ -213,11 +213,14 @@ export async function deleteTask(callerId: string, taskId: string) {
 
     await requireWriteAccess(callerId, projectId);
 
-    // Design decision: block Story deletion if it still has children
+    // Design decision: deleting a Story makes its child Tasks/Bugs standalone
+    // (parentId set to null) rather than deleting them. This preserves all
+    // work — no data loss if a story is accidentally deleted.
     if (existing.type === "story" && existing.children.length > 0) {
-        throw new Error(
-            "INVALID: Cannot delete a Story that still has child tasks. Remove or reassign them first."
-        );
+        await prisma.task.updateMany({
+            where: { parentId: taskId },
+            data: { parentId: null },
+        });
     }
 
     await prisma.task.delete({ where: { id: taskId } });
@@ -244,7 +247,9 @@ export async function moveTask(
     if (existing.type === "story") {
         throw new Error("INVALID: Stories cannot be moved directly across columns");
     }
-
+    if (!existing.columnId) {
+        throw new Error("CORRUPT: Task is missing columnId");
+    }
     // Validate the transition using allowedNextColumns on the source column
     const validMove = await isValidTransition(existing.columnId, newColumnId);
     if (!validMove) {

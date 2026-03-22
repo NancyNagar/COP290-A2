@@ -5,7 +5,8 @@ import {
   getBoardById,
   updateBoard,
   deleteBoard,
-  getStoriesByBoard
+  getStoriesByBoard,
+  setBoardTimestampColumns
 } from "../services/boardService";
 import { handleError } from "../utils/httpErrors";
 import "../types/express";
@@ -166,6 +167,41 @@ export async function getStoriesByBoardController(
 
     const stories = await getStoriesByBoard(userId, boardId);
     res.json(stories);
+  } catch (error) {
+    handleError(res, error);
+  }
+}
+/**
+ * PATCH /api/projects/:projectId/boards/:boardId/timestamp-columns
+ * Lets a Project Admin configure which column triggers resolvedAt and closedAt
+ * on tasks. Pass null for either field to clear that configuration.
+ * Body: { resolvedColumnId: string | null, closedColumnId: string | null }
+ */
+export async function setBoardTimestampColumnsController(
+  req: Request,
+  res: Response
+): Promise<void> {
+  try {
+    const { boardId } = req.params;
+    const userId = req.userId;
+    const { resolvedColumnId, closedColumnId } = req.body as {
+      resolvedColumnId?: string | null;
+      closedColumnId?: string | null;
+    };
+
+    if (!boardId || typeof boardId !== "string") {
+      res.status(400).json({ message: "Board ID is required" });
+      return;
+    }
+
+    // Both fields are optional — pass null if not provided to preserve existing value
+    const board = await setBoardTimestampColumns(
+      userId,
+      boardId,
+      resolvedColumnId !== undefined ? resolvedColumnId : null,
+      closedColumnId !== undefined ? closedColumnId : null
+    );
+    res.json(board);
   } catch (error) {
     handleError(res, error);
   }

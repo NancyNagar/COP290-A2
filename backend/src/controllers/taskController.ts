@@ -18,16 +18,18 @@ export async function createTaskController(
   try {
     const userId = req.userId;
     const { title, description, columnId, boardId, priority, type, dueDate, assigneeId, reporterId, parentId } = req.body;
-
-    // Basic validation (same as other controllers)
-    if (!title || typeof title !== "string") {
-      res.status(400).json({ message: "title is required" });
-      return;
-    }
-
-    if (!columnId || typeof columnId !== "string") {
-      res.status(400).json({ message: "columnId is required" });
-      return;
+    const taskType = type || "task";
+    // Stories require boardId and must NOT have a columnId; tasks/bugs require columnId
+    if (taskType === "story") {
+      if (!boardId || typeof boardId !== "string") {
+        res.status(400).json({ message: "boardId is required for stories" });
+        return;
+      }
+    } else {
+      if (!columnId || typeof columnId !== "string") {
+        res.status(400).json({ message: "columnId is required for tasks and bugs" });
+        return;
+      }
     }
 
     if (!priority || typeof priority !== "string") {

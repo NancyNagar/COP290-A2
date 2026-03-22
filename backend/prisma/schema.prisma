@@ -57,9 +57,13 @@ model Board {
   projectId String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  // Which column triggers resolvedAt and closedAt on tasks.
+  // Set once by Project Admin; null means the feature is not configured.
+  resolvedColumnId String?
+  closedColumnId   String?
   project Project  @relation(fields: [projectId], references: [id])
-  stories Task[] @relation("BoardStories")
   columns Column[]
+  stories Task[]   @relation("BoardStories")
 }
 
 model Column {
@@ -86,13 +90,13 @@ model Task {
   resolvedAt DateTime?
   closedAt   DateTime? 
   columnId   String?
-  boardId    String? //only set for stories
+  boardId    String?
   reporterId String
   assigneeId String?
   parentId   String?   // null for Stories and standalone tasks; set for Tasks/Bugs under a Story
 
-  column   Column?  @relation(fields: [columnId], references: [id])
-  board    Board?   @relation("BoardStories", fields: [boardId], references: [id])
+  column   Column? @relation(fields: [columnId], references: [id])
+  board    Board?  @relation("BoardStories", fields: [boardId], references: [id])
   reporter User    @relation(fields: [reporterId], references: [id])
   assignee User?   @relation("AssignedTasks", fields: [assigneeId], references: [id])
   parent   Task?   @relation("TaskChildren", fields: [parentId], references: [id])

@@ -13,6 +13,6 @@ router.post("/", authMiddleware, createTaskController);
 router.patch("/move/:taskId", authMiddleware, moveTaskController);
 router.get("/column/:columnId", authMiddleware, getTasksByColumnController);
 router.get("/:taskId", authMiddleware, getTaskByIdController);
-router.put("/:taskId", authMiddleware, updateTaskController);
+router.patch("/:taskId", authMiddleware, updateTaskController);
 router.delete("/:taskId", authMiddleware, deleteTaskController);
 export default router;

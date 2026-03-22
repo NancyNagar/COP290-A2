@@ -25,7 +25,7 @@ export async function markNotificationReadController(
   try {
     const { id } = req.params;
     if (!id || typeof id !== "string") {
-      return res.status(400).json({ error: "Task ID is required" });
+      return res.status(400).json({ error: "Notification ID is required" });
     }
     const notification = await markNotificationRead(id);
     res.json(notification);

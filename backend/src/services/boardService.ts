@@ -105,8 +105,50 @@ export async function getStoriesByBoard(userId: string, boardId: string) {
   await requireProjectAccess(userId, board.projectId);
 
   return prisma.task.findMany({
-    where: { boardId, type: "story" },
+    where: { column: { boardId }, type: "story" },
     include: { children: { include: { assignee: true } } },
     orderBy: { createdAt: "asc" }
+  });
+}
+/**
+ * Configures which columns trigger resolvedAt and closedAt timestamps on tasks.
+ * Only Project Admins (or Global Admins) can set this — it applies to all tasks
+ * on the board from that point forward.
+ * Pass null for either field to clear that configuration.
+ */
+export async function setBoardTimestampColumns(
+  userId: string,
+  boardId: string,
+  resolvedColumnId: string | null,
+  closedColumnId: string | null
+) {
+  const board = await prisma.board.findUnique({
+    where: { id: boardId },
+    select: { projectId: true },
+  });
+  if (!board) throw new Error("NOT_FOUND: Board not found");
+
+  await requireAdminAccess(userId, board.projectId);
+
+  // Validate that the provided column IDs actually belong to this board
+  const columnIds = [resolvedColumnId, closedColumnId].filter(
+    (id): id is string => id !== null
+  );
+
+  if (columnIds.length > 0) {
+    const validColumns = await prisma.column.findMany({
+      where: { id: { in: columnIds }, boardId },
+      select: { id: true },
+    });
+    if (validColumns.length !== columnIds.length) {
+      throw new Error(
+        "INVALID: One or more column IDs do not belong to this board"
+      );
+    }
+  }
+
+  return prisma.board.update({
+    where: { id: boardId },
+    data: { resolvedColumnId, closedColumnId },
   });
 }
