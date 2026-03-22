@@ -225,6 +225,23 @@ export async function updateProfile(req: Request, res: Response): Promise<void> 
   }
 }
 
+export async function getUserByEmail(req: Request, res: Response) {
+  const { email } = req.query;
+  if (!email || typeof email !== 'string') {
+    res.status(400).json({ message: 'Email is required' });
+    return;
+  }
+  const user = await prisma.user.findUnique({
+    where: { email },
+    select: { id: true, name: true, email: true, avatar: true }
+  });
+  if (!user) {
+    res.status(404).json({ message: 'User not found' });
+    return;
+  }
+  res.json({ user });
+}
+
 export async function getMe(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.userId;

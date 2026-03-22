@@ -5,12 +5,13 @@ import { moveTask } from '../../services/task_service';
 import { reorderColumns } from '../../services/column_service';
 
 interface Props {
+  projectId: string;
   board: BoardType;
   canManage: boolean;
   onRefresh: () => void;
 }
 
-export default function Board({ board: initialBoard, canManage, onRefresh }: Props) {
+export default function Board({ board: initialBoard, projectId, canManage, onRefresh }: Props) {
   const [board, setBoard] = useState<BoardType>(initialBoard);
   const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
   const [draggingColumnId, setDraggingColumnId] = useState<string | null>(null);
@@ -86,6 +87,7 @@ export default function Board({ board: initialBoard, canManage, onRefresh }: Pro
     }}>
       {board.columns.map(col => (
         <ColumnComponent
+          projectId={projectId}
           key={col.id}
           column={col}
           tasks={col.tasks ?? []}

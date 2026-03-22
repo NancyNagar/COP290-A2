@@ -1,4 +1,4 @@
-import { useState,type DragEvent } from 'react';
+import { useState, useEffect,type DragEvent } from 'react';
 import type { Column as ColumnType} from '../../types/board';
 import type { Task } from '../../types/task';
 import TaskCard from './task_card';
@@ -6,8 +6,10 @@ import TaskForm from '../tasks/task_form';
 import Modal from '../common/modal';
 import { deleteColumn, updateColumn, updateWipLimit } from '../../services/column_service';
 import { useAuth } from '../../context/auth_context';
+import { getStoriesByBoard } from '../../services/board_service';
 
 interface Props {
+  projectId: string;
   column: ColumnType;
   tasks: Task[];
   canManage: boolean;
@@ -21,7 +23,7 @@ interface Props {
 }
 
 export default function Column({
-  column, tasks, canManage,
+  projectId, column, tasks, canManage,
   isDraggingTask, onTaskDragStart, onTaskDrop,
   isDraggingColumn, onColumnDragStart, onColumnDrop,
   onRefresh
@@ -31,6 +33,13 @@ export default function Column({
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [newName, setNewName] = useState(column.name);
+  const [stories, setStories] = useState<Task[]>([]);
+
+  useEffect(() => {
+    getStoriesByBoard(projectId, column.boardId)
+      .then(setStories)
+      .catch(() => {});
+  }, [column.boardId]);
   const wipFull = column.wipLimit != null && tasks.length >= column.wipLimit;
 
   function handleDragOver(e: DragEvent) {
@@ -199,6 +208,7 @@ export default function Column({
             columnId={column.id}
             boardId={column.boardId}
             reporterId={user.id}
+            stories={stories}
             onSuccess={() => { setShowTaskForm(false); onRefresh(); }}
             onCancel={() => setShowTaskForm(false)}
           />

@@ -17,6 +17,7 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
   const config: RequestInit = {
     ...options,
     credentials: 'include',
+    cache: 'no-store',
     headers: { 'Content-Type': 'application/json', ...options.headers },
   };
  

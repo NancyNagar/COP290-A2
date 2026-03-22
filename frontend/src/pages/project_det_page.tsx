@@ -2,11 +2,8 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import type { Project } from '../types/project';
 import type { ProjectMember } from '../types/user';
-import {
-  getProjects, getProjectMembers,
-  archiveProject, deleteProject,
-  upsertProjectMember
-} from '../services/project_service';
+import {getProjects, getProjectMembers, archiveProject, deleteProject, upsertProjectMember} from '../services/project_service';
+import { getUserByEmail } from '../services/auth_service';
 import { getBoards, createBoard } from '../services/board_service';
 import type { Board } from '../types/board';
 import MemberList from '../components/projects/member_list';
@@ -24,7 +21,7 @@ export default function ProjectDetailPage() {
   const [boards, setBoards] = useState<Board[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddMember, setShowAddMember] = useState(false);
-  const [addUserId, setAddUserId] = useState('');
+  const [addEmail, setAddEmail] = useState('');  
   const [addRole, setAddRole] = useState<'project_admin' | 'project_member' | 'project_viewer'>('project_member');
   const [addError, setAddError] = useState('');
 
@@ -53,12 +50,14 @@ export default function ProjectDetailPage() {
     e.preventDefault();
     setAddError('');
     try {
-      await upsertProjectMember(projectId!, { userId: addUserId, role: addRole });
+      // Look up user by email first
+      const { user: foundUser } = await getUserByEmail(addEmail);
+      await upsertProjectMember(projectId!, { userId: foundUser.id, role: addRole });
       setShowAddMember(false);
-      setAddUserId('');
+      setAddEmail('');
       void load();
     } catch (err) { setAddError((err as Error).message); }
-  }
+    }
 
   async function handleCreateBoard() {
     const name = prompt('Board name:');
@@ -210,13 +209,13 @@ export default function ProjectDetailPage() {
         <Modal title="Add Member" onClose={() => setShowAddMember(false)}>
           <form onSubmit={handleAddMember} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div>
-              <label style={lbl}>User ID *</label>
+              <label style={lbl}>User Email *</label>
               <input
-                value={addUserId}
-                onChange={e => setAddUserId(e.target.value)}
+                value={addEmail}
+                onChange={e => setAddEmail(e.target.value)}
                 required
                 style={inp}
-                placeholder="Paste user ID"
+                placeholder="Paste user email"
               />
             </div>
             <div>

@@ -9,6 +9,7 @@ import AddColumnModal from '../components/board/add_column_modal';
 import Modal from '../components/common/modal';
 import Spinner from '../components/common/spinner';
 import { useAuth } from '../context/auth_context';
+import StoriesPanel from '../components/board/stories_panel';
 
 export default function BoardPage() {
   const { projectId, boardId } = useParams<{ projectId: string; boardId: string }>();
@@ -85,7 +86,8 @@ export default function BoardPage() {
         )}
       </div>
 
-      <BoardComponent key={boardKey} board={board} canManage={canManage} onRefresh={load} />
+      <StoriesPanel projectId={projectId!} boardId={board.id} canManage={canManage} />
+      <BoardComponent key={boardKey} projectId={projectId!} board={board} canManage={canManage} onRefresh={load} />
 
       {showAddColumn && (
         <Modal title="Add Column" onClose={() => setShowAddColumn(false)}>

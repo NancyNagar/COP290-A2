@@ -3,6 +3,7 @@ import { AuthProvider } from './context/auth_context';
 import { NotificationProvider } from './context/notification_context';
 import ProtectedRoute from './components/common/protected_route';
 import Layout from './components/layout/layout';
+import ProfilePage from './pages/profile_page';
 
 import LoginPage from './pages/login_page';
 import RegisterPage from './pages/register_page';
@@ -29,6 +30,7 @@ export default function App() {
               <Route path="/projects/:projectId" element={<ProjectDetailPage />} />
               <Route path="/projects/:projectId/boards/:boardId" element={<BoardPage />} />
               <Route path="/tasks/:taskId" element={<TaskDetailPage />} />
+              <Route path="/profile" element={<ProfilePage />} />
             </Route>
 
             {/* Fallback */}

@@ -1,5 +1,6 @@
 import { apiFetch } from './api';
 import type { Board, CreateBoardPayload } from '../types/board';
+import type { Task } from '../types/task';
 
 export const getBoards = (projectId: string): Promise<Board[]> =>
   apiFetch(`/projects/${projectId}/boards`);
@@ -15,3 +16,6 @@ export const updateBoard = (projectId: string, boardId: string, name: string): P
 
 export const deleteBoard = (projectId: string, boardId: string): Promise<void> =>
   apiFetch(`/projects/${projectId}/boards/${boardId}`, { method: 'DELETE' });
+
+export const getStoriesByBoard = (projectId: string, boardId: string): Promise<Task[]> =>
+  apiFetch(`/projects/${projectId}/boards/${boardId}/stories?t=${Date.now()}`);

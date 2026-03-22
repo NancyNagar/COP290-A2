@@ -2,6 +2,7 @@ import { NavLink } from 'react-router-dom';
 
 const links = [
   { to: '/dashboard', label: '⊞  Projects' },
+  { to: '/profile', label: '👤  Profile' },
 ];
 
 export default function Sidebar() {

@@ -2,16 +2,18 @@ import { useState, type FormEvent } from 'react';
 import type { CreateTaskPayload, TaskPriority, TaskType } from '../../types/task';
 import { createTask } from '../../services/task_service';
 import Spinner from '../common/spinner';
+import type { Task } from '../../types/task';
 
 interface Props {
   columnId: string;
   reporterId: string;
   boardId: string; 
+  stories?: Task[];
   onSuccess: () => void;
   onCancel: () => void;
 }
 
-export default function TaskForm({ columnId, boardId, reporterId, onSuccess, onCancel }: Props) {
+export default function TaskForm({ columnId, boardId, stories = [], reporterId, onSuccess, onCancel }: Props) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<TaskPriority>('medium');
@@ -20,6 +22,8 @@ export default function TaskForm({ columnId, boardId, reporterId, onSuccess, onC
   const [dueDate, setDueDate] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [parentId, setParentId] = useState('');
+  
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -28,11 +32,12 @@ export default function TaskForm({ columnId, boardId, reporterId, onSuccess, onC
     const payload: CreateTaskPayload = {
       title,
       columnId: type === 'story' ? undefined : columnId,
-      boardId:  type === 'story' ? boardId : undefined,
+      boardId: type === 'story' ? boardId : undefined,
       priority, type, reporterId,
       description: description || undefined,
       assigneeId: assigneeId || undefined,
       dueDate: dueDate || undefined,
+      parentId: parentId || undefined,
     };
     try {
       await createTask(payload);
@@ -75,6 +80,21 @@ export default function TaskForm({ columnId, boardId, reporterId, onSuccess, onC
           </select>
         </div>
       </div>
+      {stories.length > 0 && type !== 'story' && (
+        <div>
+          <label style={lbl}>Link to Story (optional)</label>
+          <select
+            value={parentId}
+            onChange={e => setParentId(e.target.value)}
+            style={inp}
+          >
+            <option value="">— None —</option>
+            {stories.map(s => (
+              <option key={s.id} value={s.id}>{s.title}</option>
+            ))}
+          </select>
+        </div>
+      )}
       <div>
         <label style={lbl}>Description</label>
         <textarea
